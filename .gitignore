@@ -4,6 +4,8 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.DS_Store
+.vscode/
 
 # Generated local reports
 docs/reports/*.local.md
