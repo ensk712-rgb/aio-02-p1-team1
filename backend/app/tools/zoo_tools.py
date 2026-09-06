@@ -1,122 +1,263 @@
-"""동물원 조회·예약 Tool 5종의 입력 모델과 함수입니다.
+"""운영 조회 Tool 3종 (최두나 소유, 작업지시서 v1.1 4.1/4.2절).
 
-데이터는 MVP용 In-memory Mock입니다 (`docs/04_pending-action-and-confirmation.md`와 같은
-패턴 — 실제 서비스 확장 시 DB로 교체). 함수는 각각 조회 또는 상태 변경 하나만 합니다.
+이 모듈은 순수 Python 조회 함수만 담는다. FastAPI 앱, Agent Runtime, MCP Client를
+import하지 않는다 — mcp_server 프로세스가 이 모듈을 그대로 재사용(코드 재사용)하기
+때문에, 여기서 FastAPI/Runtime을 import하면 순환 의존이 생긴다.
+
+위험도: 셋 다 read.
 """
 
-from uuid import uuid4
+from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+import json
+from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
 
-# ---------- Mock 데이터 ----------
+from pydantic import ValidationError
 
-FEEDING_SCHEDULE: dict[str, dict] = {
-    "해양관": {"animal": "물개", "time": "14:30", "location": "해양관 2층 관람대"},
-    "맹수사": {"animal": "호랑이", "time": "11:00", "location": "맹수사 정문 앞"},
-    "판다관": {"animal": "판다", "time": "10:30", "location": "판다관 실내 전시장"},
-}
+from backend.app.core.config import DATA_DIR, try_get_settings
+from backend.app.schemas.common import ToolError, ToolRunResult
+from backend.app.schemas.tools import (
+    ClosureStatusInput,
+    FeedingScheduleInput,
+    RouteInput,
+)
 
-CLOSURE_STATUS: dict[str, str] = {
-    "맹수사": "청소로 인한 임시휴장 (14:00 재개 예정)",
-}
-
-ROUTE_MINUTES: dict[tuple[str, str], int] = {
-    ("정문", "판다관"): 5,
-    ("정문", "해양관"): 12,
-    ("정문", "맹수사"): 8,
-    ("정문", "야행성동물관"): 15,
-}
-
-TICKET_SCOPE: dict[str, dict] = {
-    "기본권": {"night_open": False, "experience_included": False},
-    "종합이용권": {"night_open": True, "experience_included": True},
-    "야간권": {"night_open": True, "experience_included": False},
-}
-
-EXPERIENCE_PROGRAMS: dict[str, dict] = {
-    "사육사체험": {"capacity_per_slot": 10},
-}
-_RESERVED: dict[str, int] = {}
+SOURCE_NAME = "mock_zoo_operations"
+_SEOUL = ZoneInfo("Asia/Seoul")
 
 
-# ---------- 입력 모델 ----------
-
-class FeedingScheduleInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    habitat: str = Field(description="동물사 이름, 예: 해양관")
-
-
-class ClosureStatusInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    habitat: str | None = Field(default=None, description="특정 동물사 이름. 비우면 전체 휴장 목록을 반환")
+def _load_json(relative_path: str) -> dict[str, Any]:
+    path: Path = DATA_DIR / relative_path
+    with path.open(encoding="utf-8") as f:
+        return json.load(f)
 
 
-class HabitatRouteInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    current: str = Field(default="정문", description="현재 위치")
-    destination: str = Field(description="목적지 동물사 이름")
+@lru_cache
+def _habitat_alias_map() -> dict[str, str]:
+    """별칭(공백 제거·소문자) -> 정규 시설명."""
+    payload = _load_json("operations/habitats.json")
+    mapping: dict[str, str] = {}
+    for habitat in payload["habitats"]:
+        canonical = habitat["name"]
+        for alias in habitat["aliases"]:
+            mapping[_normalize_alias(alias)] = canonical
+    return mapping
 
 
-class TicketScopeInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    ticket_type: str = Field(description="티켓 종류, 예: 종합이용권")
+def _normalize_alias(value: str) -> str:
+    return value.strip().lower()
 
 
-class ReserveExperienceInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    program: str = Field(description="체험 프로그램 이름, 예: 사육사체험")
-    time: str = Field(description="예약 시각, 예: 15:00")
-    headcount: int = Field(ge=1, le=20, description="인원 수")
+def normalize_habitat(raw: str) -> str | None:
+    """별칭을 포함해 정규 시설명으로 변환한다. 등록되지 않은 시설은 None."""
+    return _habitat_alias_map().get(_normalize_alias(raw))
 
 
-# ---------- 함수 ----------
-
-def get_feeding_schedule(args: FeedingScheduleInput) -> dict:
-    entry = FEEDING_SCHEDULE.get(args.habitat)
-    if entry is None:
-        return {"found": False, "message": f"'{args.habitat}'은(는) 등록된 동물사가 아니에요.", "available_habitats": list(FEEDING_SCHEDULE)}
-    return {"found": True, **entry}
-
-
-def check_closure_status(args: ClosureStatusInput) -> dict:
-    if args.habitat:
-        reason = CLOSURE_STATUS.get(args.habitat)
-        return {"habitat": args.habitat, "closed": reason is not None, "reason": reason}
-    return {"closed_habitats": dict(CLOSURE_STATUS)}
+def _resolve_now() -> datetime:
+    settings = try_get_settings()
+    if settings is not None:
+        demo_now = settings.demo_now_datetime()
+        if demo_now is not None:
+            return demo_now
+    return datetime.now(_SEOUL)
 
 
-def find_habitat_route(args: HabitatRouteInput) -> dict:
-    minutes = ROUTE_MINUTES.get((args.current, args.destination))
-    note = ""
-    if minutes is None:
-        minutes = ROUTE_MINUTES.get(("정문", args.destination))
-        note = "정확한 출발지 경로 정보가 없어 정문 기준으로 안내해요." if minutes is not None else ""
-    if minutes is None:
-        return {"from": args.current, "to": args.destination, "found": False, "message": f"'{args.destination}' 경로 정보를 찾을 수 없어요."}
-    return {"from": args.current, "to": args.destination, "found": True, "estimated_minutes": minutes, "note": note}
+def _not_found_result(code: str, message: str) -> ToolRunResult:
+    return ToolRunResult(
+        success=False,
+        data={},
+        error=ToolError(code=code, message=message),
+        source=SOURCE_NAME,
+        retrieved_at=_resolve_now(),
+    )
 
 
-def lookup_ticket_scope(args: TicketScopeInput) -> dict:
-    scope = TICKET_SCOPE.get(args.ticket_type)
-    if scope is None:
-        return {"found": False, "message": f"'{args.ticket_type}' 티켓 정보를 찾을 수 없어요. 매표소에 문의해 주세요.", "known_types": list(TICKET_SCOPE)}
-    return {"found": True, "ticket_type": args.ticket_type, **scope}
+def get_feeding_schedule(habitat: str, *, now: datetime | None = None) -> ToolRunResult:
+    """habitat의 다음 먹이시간을 조회한다.
+
+    같은 시설에 동물이 여러 종이면(예: 해양관=펭귄+물개) 그중 가장 가까운
+    다음 먹이시간을 대표로 반환한다. 오늘 남은 일정이 없으면 그 시설의 첫
+    번째 항목을 기준으로 next_feeding_at=null을 반환한다.
+
+    now: 테스트/평가에서 결정적 시각을 주입할 때 사용한다. 생략하면
+    DEMO_NOW(.env) 또는 실제 Asia/Seoul 현재 시각을 쓴다.
+    """
+    try:
+        validated = FeedingScheduleInput(habitat=habitat)
+    except ValidationError as exc:
+        return _not_found_result("INVALID_ARGUMENT", str(exc))
+
+    canonical = normalize_habitat(validated.habitat)
+    if canonical is None:
+        return _not_found_result(
+            "HABITAT_NOT_FOUND", f"'{habitat}'은(는) 등록된 시설이 아닙니다."
+        )
+
+    now = now or _resolve_now()
+    payload = _load_json("operations/feeding.json")
+    rows = [row for row in payload["schedules"] if row["habitat"] == canonical]
+
+    if not rows:
+        return ToolRunResult(
+            success=True,
+            data={
+                "habitat": canonical,
+                "animal": None,
+                "next_feeding_at": None,
+                "location": None,
+                "as_of": now.isoformat(),
+            },
+            error=None,
+            source=SOURCE_NAME,
+            retrieved_at=now,
+        )
+
+    best_animal = None
+    best_location = None
+    best_next: datetime | None = None
+    for row in rows:
+        next_dt = _next_time_today(row["times"], now)
+        if best_animal is None:
+            best_animal, best_location = row["animal"], row["location"]
+        if next_dt is not None and (best_next is None or next_dt < best_next):
+            best_next = next_dt
+            best_animal, best_location = row["animal"], row["location"]
+
+    return ToolRunResult(
+        success=True,
+        data={
+            "habitat": canonical,
+            "animal": best_animal,
+            "next_feeding_at": best_next.isoformat() if best_next else None,
+            "location": best_location,
+            "as_of": now.isoformat(),
+        },
+        error=None,
+        source=SOURCE_NAME,
+        retrieved_at=now,
+    )
 
 
-def reserve_experience_program(args: ReserveExperienceInput) -> dict:
-    program = EXPERIENCE_PROGRAMS.get(args.program)
-    if program is None:
-        return {"success": False, "message": f"'{args.program}' 프로그램이 없어요.", "known_programs": list(EXPERIENCE_PROGRAMS)}
-    key = f"{args.program}|{args.time}"
-    reserved = _RESERVED.get(key, 0)
-    remaining = program["capacity_per_slot"] - reserved
-    if args.headcount > remaining:
-        return {"success": False, "message": f"정원이 초과되어 예약할 수 없어요. 남은 자리 {max(remaining, 0)}명.", "remaining": max(remaining, 0)}
-    _RESERVED[key] = reserved + args.headcount
-    return {
-        "success": True,
-        "reservation_id": f"EXP-{uuid4().hex[:6].upper()}",
-        "program": args.program,
-        "time": args.time,
-        "headcount": args.headcount,
-    }
+def _next_time_today(times: list[str], now: datetime) -> datetime | None:
+    candidates = []
+    for hhmm in times:
+        hour, minute = (int(part) for part in hhmm.split(":"))
+        candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if candidate > now:
+            candidates.append(candidate)
+    return min(candidates) if candidates else None
+
+
+def check_closure_status(
+    habitat: str | None = None, *, now: datetime | None = None
+) -> ToolRunResult:
+    """habitat=None이면 전체 시설 상태를, 지정하면 해당 시설 하나를 items 목록으로 반환."""
+    try:
+        validated = ClosureStatusInput(habitat=habitat)
+    except ValidationError as exc:
+        return _not_found_result("INVALID_ARGUMENT", str(exc))
+
+    now = now or _resolve_now()
+    payload = _load_json("operations/closures.json")
+    all_rows = payload["closures"]
+
+    if validated.habitat is None:
+        items = [
+            {"habitat": row["habitat"], "closed": row["closed"], "reason": row["reason"]}
+            for row in all_rows
+        ]
+        return ToolRunResult(
+            success=True,
+            data={"items": items, "as_of": now.isoformat()},
+            error=None,
+            source=SOURCE_NAME,
+            retrieved_at=now,
+        )
+
+    canonical = normalize_habitat(validated.habitat)
+    if canonical is None:
+        return _not_found_result(
+            "HABITAT_NOT_FOUND", f"'{habitat}'은(는) 등록된 시설이 아닙니다."
+        )
+
+    row = next((r for r in all_rows if r["habitat"] == canonical), None)
+    if row is None:
+        return _not_found_result(
+            "HABITAT_NOT_FOUND", f"'{habitat}'의 휴장 정보를 찾을 수 없습니다."
+        )
+
+    items = [{"habitat": row["habitat"], "closed": row["closed"], "reason": row["reason"]}]
+    return ToolRunResult(
+        success=True,
+        data={"items": items, "as_of": now.isoformat()},
+        error=None,
+        source=SOURCE_NAME,
+        retrieved_at=now,
+    )
+
+
+def find_habitat_route(
+    current: str, destination: str, *, now: datetime | None = None
+) -> ToolRunResult:
+    try:
+        validated = RouteInput(current=current, destination=destination)
+    except ValidationError as exc:
+        return _not_found_result("INVALID_ARGUMENT", str(exc))
+
+    now = now or _resolve_now()
+    canonical_current = normalize_habitat(validated.current)
+    canonical_destination = normalize_habitat(validated.destination)
+
+    if canonical_current is None or canonical_destination is None:
+        bad = current if canonical_current is None else destination
+        return _not_found_result(
+            "HABITAT_NOT_FOUND", f"'{bad}'은(는) 등록된 시설이 아닙니다."
+        )
+
+    if canonical_current == canonical_destination:
+        return ToolRunResult(
+            success=True,
+            data={
+                "current": canonical_current,
+                "destination": canonical_destination,
+                "path": [canonical_current],
+                "estimated_minutes": 0,
+                "as_of": now.isoformat(),
+            },
+            error=None,
+            source=SOURCE_NAME,
+            retrieved_at=now,
+        )
+
+    payload = _load_json("operations/routes.json")
+    row = next(
+        (
+            r
+            for r in payload["routes"]
+            if r["current"] == canonical_current and r["destination"] == canonical_destination
+        ),
+        None,
+    )
+    if row is None:
+        return _not_found_result(
+            "ROUTE_NOT_FOUND",
+            f"'{canonical_current}'에서 '{canonical_destination}'까지의 경로를 찾을 수 없습니다.",
+        )
+
+    return ToolRunResult(
+        success=True,
+        data={
+            "current": canonical_current,
+            "destination": canonical_destination,
+            "path": row["path"],
+            "estimated_minutes": row["estimated_minutes"],
+            "as_of": now.isoformat(),
+        },
+        error=None,
+        source=SOURCE_NAME,
+        retrieved_at=now,
+    )

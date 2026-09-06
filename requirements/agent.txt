@@ -1,0 +1,7 @@
+# 손영민 소유 - Agent Runtime / API 관련 의존성
+openai>=1.0,<2
+fastapi>=0.110,<1
+uvicorn>=0.29,<1
+pydantic>=2.6,<3
+pydantic-settings>=2.2,<3
+pytest>=8.0,<9

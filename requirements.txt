@@ -1,14 +1,5 @@
-fastapi
-google-genai
-httpx
-openai
-pgvector
-psycopg[binary]
-pydantic
-pydantic-settings
-python-dotenv
-python-multipart
-pytest
-redis
-streamlit
-uvicorn
+# 공통 진입점 - 세 담당 의존성 파일을 -r로 포함한다.
+# 개별 파일은 requirements/agent.txt(손영민), requirements/data.txt(최두나), requirements/ui-mcp.txt(이원민)에서 관리한다.
+-r requirements/agent.txt
+-r requirements/data.txt
+-r requirements/ui-mcp.txt
