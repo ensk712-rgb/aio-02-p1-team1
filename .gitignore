@@ -1,0 +1,9 @@
+# Python virtual environments and local secrets
+.venv/
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated local reports
+docs/reports/*.local.md
