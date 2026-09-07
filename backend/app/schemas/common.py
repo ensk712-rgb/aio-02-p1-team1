@@ -30,3 +30,45 @@ class TraceItem(BaseModel):
         default_factory=dict,
         description="단계 분석에 필요한 안전한 추가 정보",
     )
+
+class ToolError(BaseModel):
+    """내부 예외 원문·키를 담지 않는다."""
+
+    code: str
+    message: str
+
+
+class ToolRunResult(BaseModel):
+    success: bool
+    data: dict[str, Any] = Field(default_factory=dict)
+    error: ToolError | None = None
+    source: str
+    retrieved_at: datetime
+
+
+class ToolCallRecord(BaseModel):
+    name: str
+    arguments: dict[str, Any]
+    risk: Literal["read", "change"]
+    result: ToolRunResult
+
+
+class RetrievedChunk(BaseModel):
+    doc_id: str
+    title: str
+    page: int | None = None
+    text: str
+    score: float = Field(ge=0, le=1)
+    collection: str
+
+
+class RagInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1, max_length=500)
+    collection: Literal["animal_cards"]
+
+
+class RagSearchData(BaseModel):
+    matched: bool
+    chunks: list[RetrievedChunk]
