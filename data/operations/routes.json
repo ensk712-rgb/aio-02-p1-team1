@@ -1,0 +1,27 @@
+{
+  "routes": [
+    { "current": "정문", "destination": "호랑이관", "path": ["정문", "호랑이관"], "estimated_minutes": 10 },
+    { "current": "호랑이관", "destination": "정문", "path": ["호랑이관", "정문"], "estimated_minutes": 10 },
+
+    { "current": "정문", "destination": "해양관", "path": ["정문", "해양관"], "estimated_minutes": 15 },
+    { "current": "해양관", "destination": "정문", "path": ["해양관", "정문"], "estimated_minutes": 15 },
+
+    { "current": "정문", "destination": "코끼리관", "path": ["정문", "코끼리관"], "estimated_minutes": 12 },
+    { "current": "코끼리관", "destination": "정문", "path": ["코끼리관", "정문"], "estimated_minutes": 12 },
+
+    { "current": "정문", "destination": "기린관", "path": ["정문", "기린관"], "estimated_minutes": 8 },
+    { "current": "기린관", "destination": "정문", "path": ["기린관", "정문"], "estimated_minutes": 8 },
+
+    { "current": "호랑이관", "destination": "해양관", "path": ["호랑이관", "정문", "해양관"], "estimated_minutes": 20 },
+    { "current": "해양관", "destination": "호랑이관", "path": ["해양관", "정문", "호랑이관"], "estimated_minutes": 20 },
+
+    { "current": "호랑이관", "destination": "코끼리관", "path": ["호랑이관", "정문", "코끼리관"], "estimated_minutes": 18 },
+    { "current": "코끼리관", "destination": "호랑이관", "path": ["코끼리관", "정문", "호랑이관"], "estimated_minutes": 18 },
+
+    { "current": "코끼리관", "destination": "기린관", "path": ["코끼리관", "정문", "기린관"], "estimated_minutes": 16 },
+    { "current": "기린관", "destination": "코끼리관", "path": ["기린관", "정문", "코끼리관"], "estimated_minutes": 16 },
+
+    { "current": "해양관", "destination": "기린관", "path": ["해양관", "정문", "기린관"], "estimated_minutes": 19 },
+    { "current": "기린관", "destination": "해양관", "path": ["기린관", "정문", "해양관"], "estimated_minutes": 19 }
+  ]
+}

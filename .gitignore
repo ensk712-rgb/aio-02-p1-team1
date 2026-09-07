@@ -1,11 +1,12 @@
-# Python virtual environments and local secrets
 .venv/
 .env
+**/.venv/
 __pycache__/
-*.py[cod]
 .pytest_cache/
+.pytest_tmp/
+*.py[cod]
+.streamlit/secrets.toml
 .DS_Store
 .vscode/
-
 # Generated local reports
 docs/reports/*.local.md

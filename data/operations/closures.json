@@ -1,0 +1,9 @@
+{
+  "closures": [
+    { "habitat": "정문", "closed": false, "reason": null },
+    { "habitat": "호랑이관", "closed": false, "reason": null },
+    { "habitat": "해양관", "closed": false, "reason": null },
+    { "habitat": "코끼리관", "closed": true, "reason": "시설 점검으로 임시 휴장" },
+    { "habitat": "기린관", "closed": false, "reason": null }
+  ]
+}

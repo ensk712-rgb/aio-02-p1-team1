@@ -1,3 +1,13 @@
+"""공통 모델 (작업지시서 v1.1 3.4절).
+
+이 파일은 원래 손영민 소유(agents/API 계약)이지만, C2(RAG·운영 Tool) 구현이
+이 모델들에 의존하므로 계약 표에 정의된 필드만 우선 반영해 둔다.
+필드/이름을 바꿀 때는 9장 규칙대로 공통 계약 변경으로 취급한다.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
 """여러 기능에서 공통으로 사용하는 데이터 모델을 정의한다."""
 
 from typing import Any, Literal
@@ -6,6 +16,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Source(BaseModel):
+    doc_id: str
+    title: str
+    page: int | None = None
+    score: float = Field(ge=0, le=1)
+
+
     """RAG 검색으로 답변의 근거가 된 문서 정보를 표현한다."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)

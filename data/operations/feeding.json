@@ -1,0 +1,34 @@
+{
+  "schedules": [
+    {
+      "habitat": "해양관",
+      "animal": "펭귄",
+      "times": ["11:00", "14:30"],
+      "location": "해양관 2층 관람대"
+    },
+    {
+      "habitat": "해양관",
+      "animal": "물개",
+      "times": ["13:00", "16:00"],
+      "location": "해양관 1층 수조 앞"
+    },
+    {
+      "habitat": "호랑이관",
+      "animal": "호랑이",
+      "times": ["15:00"],
+      "location": "호랑이관 야외 방사장"
+    },
+    {
+      "habitat": "코끼리관",
+      "animal": "코끼리",
+      "times": [],
+      "location": "코끼리관 실내 사육장"
+    },
+    {
+      "habitat": "기린관",
+      "animal": "기린",
+      "times": ["10:30", "15:30"],
+      "location": "기린관 야외 방사장"
+    }
+  ]
+}
