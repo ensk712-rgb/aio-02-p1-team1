@@ -1,6 +1,7 @@
 """Provider 판단, Tool 실행, 결과 재전달을 반복하는 Agent Runtime을 구현한다."""
 
 import asyncio
+import logging
 import json
 from dataclasses import dataclass
 from typing import Literal
@@ -19,6 +20,8 @@ from backend.app.schemas.tools import ToolCallRecord, ToolError
 from backend.app.tools.executor import ToolExecutor
 from backend.app.tools.policy import detect_forbidden_request
 
+logger = logging.getLogger(__name__)
+
 @dataclass(frozen=True)
 class RuntimeSettings:
     """P0 Runtime의 실행 한도를 담는 테스트 가능 설정이다."""
@@ -35,7 +38,18 @@ async def run_agent(
     executor: ToolExecutor,
     settings: RuntimeSettings,
 ) -> AgentAskResponse:
-    """Provider와 Executor를 연결해 Agent 질문 하나를 끝까지 처리한다."""
+    """질문 하나를 안전하게 끝까지 실행하고 API 응답으로 반환한다.
+
+    처리 순서:
+        1. 실행 기록과 고유 실행 ID를 만든다.
+        2. 결제·비밀정보·질병 확진 같은 금지 요청을 즉시 차단한다.
+        3. Provider의 판단 → Tool 검증·실행 → 결과 재전달을 반복한다.
+        4. timeout 또는 예기치 못한 오류는 사용자에게 안전한 문장으로 반환한다.
+
+    Note:
+        예외가 발생하면 로그에는 예외 클래스와 안전한 오류 메타데이터만 남긴다.
+        API 키, 사용자 질문, Tool 결과, OpenAI 오류 원문은 로그에 남기지 않는다.
+    """
     state = AgentState(
         run_id=f"run_{uuid4().hex}",
         agent_id=profile.agent_id,
@@ -76,13 +90,22 @@ async def run_agent(
             timeout=settings.run_timeout_seconds,
         )
     except TimeoutError:
+        logger.warning("Agent Runtime timeout: run_id=%s", state.run_id)
         return _finish(
             state,
             status="error",
             reason="run_timeout",
             answer="요청 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.",
         )
-    except Exception:
+    except Exception as error:
+        logger.error(
+            "Agent Runtime failed: run_id=%s, error_type=%s, status_code=%s, code=%s, param=%s",
+            state.run_id,
+            type(error).__name__,
+            getattr(error, "status_code", None),
+            getattr(error, "code", None),
+            getattr(error, "param", None),
+        )
         return _finish(
             state,
             status="error",
