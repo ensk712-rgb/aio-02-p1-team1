@@ -108,6 +108,55 @@ C4/C5는 C2의 `rag_service`/`ToolRunResult` 계약에 의존).
    열려, 파일에 실제로 깨진 바이트가 기록되는 것을 확인(터미널 표시 문제가 아니었음).
    `sys.stdout.reconfigure(encoding="utf-8")`로 해결.
 
+## 연결 시험: RAG → Runtime → ask API (7.3절, 시험 주관: 최두나)
+
+`tests/integration/rag_agent/`에 7.3절 통과 기준(N-01, A-01, A-11)에 맞춘 연결
+시험 3건을 추가했다. Fake `rag_search`가 아니라 **실제** `rag_service.retrieve_animal_info`를
+`ToolExecutor`에 그대로 연결하고, Provider만 `ScriptedMockProvider`로 대체해
+RAG 결과가 Runtime(`agents/runtime.py`, 손영민 소유)을 거쳐 `AgentAskResponse`까지
+올바르게 전달되는지 확인했다.
+
+**실행 결과: 3개 전부 FAIL.** 처음 실패한 Trace:
+
+```
+python -m pytest tests/integration/rag_agent -v
+...
+pydantic_core._pydantic_core.ValidationError: 1 validation error for ToolCallRecord
+result
+  Input should be a valid dictionary or instance of ToolRunResult [type=model_type, ...]
+```
+
+**원인**: `backend/app/schemas/common.py`(최두나가 Gate 0 전 임시로 채운 파일)와
+`backend/app/schemas/tools.py`(손영민이 만든 정식 분리 구조) 양쪽에 `ToolRunResult`
+/`ToolError`/`ToolCallRecord`가 **각각 독립적으로 다시 정의**되어 있다. 이름은
+같지만 서로 다른 Python 클래스라서, `rag_service.py`가 반환하는 `common.ToolRunResult`
+인스턴스를 `executor.py`가 만드는 `ToolCallRecord`(`tools.ToolRunResult`를 기대)에
+넣는 순간 Pydantic이 타입 불일치로 예외를 던진다. 이 예외가 `runtime.py`의
+`except Exception: status="error"`에 조용히 삼켜져서, 겉으로는 그냥 "완료된 요청인데
+error 상태"처럼만 보이고 원인이 드러나지 않는다.
+
+부수적으로 발견한 것: 같은 병합 과정에서 `schemas/tools.py` 안에
+`FeedingScheduleInput`/`ClosureStatusInput`도 두 번 정의되어 있고(뒤 정의가 덮어씀),
+`ClosureStatusData`/`ClosureItem` 근처에 `reason` 필드가 클래스 경계를 벗어나
+엉뚱한 곳에 붙어 있다. 지금 당장 실행 경로에 영향은 없어 보이지만 잠재적 위험이다.
+
+**처리 방향**: 9장 규칙("공통 Schema 변경은 손영민이 작성, 소비자가 리뷰")에 따라
+`schemas/tools.py`·`schemas/common.py`는 이 보고서 작성자가 직접 고치지 않고,
+실패하는 연결 시험을 그대로 남겨 손영민에게 공유한다. 제안하는 정리 방향은
+`common.py`는 실제로 그 자리에 있어야 하는 `Source`/`TraceItem`만 남기고,
+중복된 `ToolError`/`ToolRunResult`/`ToolCallRecord`/`RetrievedChunk`/`RagInput`/`RagSearchData`는
+제거한 뒤 `tools.py`/`rag.py`를 단일 출처로 삼는 것이다. 그렇게 되면 `rag_service.py`
+등 최두나 소유 파일들의 import 경로도 함께 바꿔야 하므로, 이 변경은 공동 작업이
+필요하다.
+
+- 실행 명령: `python -m pytest tests/integration/rag_agent -v`
+- 실행 결과(현재): `test_n01_matched_card_flows_into_tool_calls_with_score_and_status` FAIL,
+  `test_a01_no_match_completes_without_fabricating_an_answer` FAIL,
+  `test_a11_document_instruction_stays_inert_through_runtime` FAIL — 셋 다 위와 같은
+  `ToolRunResult` 타입 불일치가 원인.
+- `sources`(RAG 근거를 API 응답의 `sources` 필드에 반영하는 로직)는 위 버그에 가려
+  아직 검증되지 않았다. 스키마 문제를 먼저 고친 뒤 재확인이 필요하다.
+
 ## 남은 일 / 제한사항
 
 - **C6(전체 결과 취합)**: 손영민(Runtime/API)·이원민(MCP/화면)의 실제 구현과 실행 결과가
