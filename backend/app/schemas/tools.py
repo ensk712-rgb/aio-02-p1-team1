@@ -93,11 +93,11 @@ class ClosureItem(BaseModel):
 
     habitat: str = Field(min_length=1)
     closed: bool
+class ClosureStatusData(BaseModel):
+    """휴장 상태 조회 Tool이 성공했을 때 반환하는 운영 데이터다."""
     reason: str | None = None
 
 
-class ClosureStatusData(BaseModel):
-    """휴장 상태 조회 Tool이 성공했을 때 반환하는 운영 데이터다."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -115,3 +115,9 @@ class HabitatRouteData(BaseModel):
     path: list[str] = Field(min_length=1)
     estimated_minutes: int = Field(ge=0)
     as_of: datetime
+
+class RouteInput(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    current: str = Field(min_length=1, max_length=100)
+    destination: str = Field(min_length=1, max_length=100)
