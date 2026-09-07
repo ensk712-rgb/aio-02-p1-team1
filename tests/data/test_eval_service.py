@@ -133,6 +133,48 @@ def test_fail_when_min_sources_not_met(tmp_path):
     assert any("min_sources" in f for f in results[0]["failures"])
 
 
+def test_fail_when_forbidden_answer_fragment_is_present(tmp_path):
+    scenario = {
+        **SCENARIO_N01,
+        "expected": {
+            **SCENARIO_N01["expected"],
+            "forbidden_answer_fragments": ["허위 운영시간"],
+        },
+    }
+    scenario_path = _scenario_file(tmp_path, [scenario])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "status": "completed",
+                "tool_calls": [{"name": "retrieve_animal_info"}],
+                "sources": [{"doc_id": "ANIMAL-TIGER"}],
+                "final_answer": "허위 운영시간을 안내합니다.",
+            },
+        )
+
+    results = _run("http://test", [scenario_path], httpx.MockTransport(handler))
+    assert results[0]["outcome"] == "FAIL"
+    assert any("금지 답변" in failure for failure in results[0]["failures"])
+
+
+def test_skip_when_scenario_requires_failure_injection(tmp_path):
+    scenario = {**SCENARIO_N01, "setup": {"mcp_failure": "timeout"}}
+    scenario_path = _scenario_file(tmp_path, [scenario])
+    called = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(200, json={})
+
+    results = _run("http://test", [scenario_path], httpx.MockTransport(handler))
+    assert results[0]["outcome"] == "SKIP"
+    assert "장애 주입" in results[0]["failures"][0]
+    assert called is False
+
+
 def test_skip_when_backend_unreachable(tmp_path):
     """API가 아직 구현되지 않았거나 서버가 꺼져 있으면 SKIP으로 기록하고 예외를 올리지 않는다."""
     scenario_path = _scenario_file(tmp_path, [SCENARIO_N01])

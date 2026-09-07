@@ -90,6 +90,14 @@ class AgentClient:
             headers={"X-Auth-Session": auth_session_id},
         )
 
+    def get_admin_trace(self, auth_session_id: str, session_id: str) -> dict[str, Any]:
+        return self._request(
+            "GET",
+            "/api/admin/trace",
+            headers={"X-Auth-Session": auth_session_id},
+            params={"session_id": session_id},
+        )
+
     def decide_reservation(
         self, auth_session_id: str, action_id: str, decision: str
     ) -> dict[str, Any]:

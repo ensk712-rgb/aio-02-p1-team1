@@ -88,3 +88,42 @@ def test_executor_retries_timeout_once_then_returns_error() -> None:
     assert result.error is not None and result.error.code == "MCP_TIMEOUT"
     assert slow.calls == 2
     assert state.tool_attempts == 2
+
+
+def test_executor_invalid_mcp_result_is_error_without_retry() -> None:
+    class InvalidMcpClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def list_tools(self):
+            return []
+
+        async def call_tool(self, name, arguments):
+            self.calls += 1
+            raise McpResultError("MCP 도구 응답 형식이 올바르지 않습니다.")
+
+    invalid = InvalidMcpClient()
+    executor = ToolExecutor(
+        rag_search=lambda query, collection: ToolRunResult.model_validate({}),
+        mcp_client=invalid,
+        mcp_retry_count=1,
+    )
+    state = AgentState(
+        run_id="run_invalid",
+        agent_id="zoo_guide",
+        session_id="session_invalid",
+        question="휴장 여부",
+    )
+    result = asyncio.run(
+        executor.execute_tool_safely(
+            "check_closure_status",
+            {"habitat": None},
+            profile=get_agent_profile("zoo_guide"),
+            state=state,
+        )
+    )
+    assert result.success is False
+    assert result.data == {}
+    assert result.error is not None and result.error.code == "MCP_TOOL_ERROR"
+    assert invalid.calls == 1
+    assert state.tool_attempts == 1

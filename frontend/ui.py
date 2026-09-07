@@ -17,10 +17,21 @@ STATUS_LABELS = {
     "error": ("조회 실패", "red"),
 }
 
+CLIENT_ERROR_LABELS = {
+    "connection": ("서버 연결 실패", ":material/cloud_off:"),
+    "timeout": ("응답 지연", ":material/timer_off:"),
+    "http": ("API 요청 실패", ":material/http:"),
+    "invalid_response": ("응답 형식 오류", ":material/data_alert:"),
+}
 
-def render_agent_response(response: dict[str, Any]) -> None:
+
+def render_agent_response(response: dict[str, Any], *, key_prefix: str = "response") -> None:
     status = str(response.get("status", "error"))
     label, color = STATUS_LABELS.get(status, ("알 수 없는 상태", "red"))
+    error_kind = response.get("error_kind")
+    error_icon = ":material/error:"
+    if status == "error" and isinstance(error_kind, str):
+        label, error_icon = CLIENT_ERROR_LABELS.get(error_kind, (label, error_icon))
     st.badge(label, color=color)
 
     answer = response.get("final_answer")
@@ -34,13 +45,13 @@ def render_agent_response(response: dict[str, Any]) -> None:
     elif status in {"rejected", "stopped"}:
         st.warning(answer, icon=":material/shield:")
     else:
-        st.error(answer, icon=":material/error:")
+        st.error(answer, icon=error_icon)
 
-    render_sources(response.get("sources", []))
-    render_tool_calls(response.get("tool_calls", []))
+    render_sources(response.get("sources", []), key_prefix=key_prefix)
+    render_tool_calls(response.get("tool_calls", []), key_prefix=key_prefix)
 
 
-def render_sources(sources: Any) -> None:
+def render_sources(sources: Any, *, key_prefix: str = "response") -> None:
     if not isinstance(sources, list) or not sources:
         return
     with st.expander("확인한 동물 정보", icon=":material/menu_book:"):
@@ -64,11 +75,11 @@ def render_sources(sources: Any) -> None:
                         "관련도", min_value=0.0, max_value=1.0, format="%.2f"
                     )
                 },
-                key="source_cards",
+                key=f"{key_prefix}_source_cards",
             )
 
 
-def render_tool_calls(tool_calls: Any) -> None:
+def render_tool_calls(tool_calls: Any, *, key_prefix: str = "response") -> None:
     if not isinstance(tool_calls, list):
         return
     for index, call in enumerate(tool_calls):
@@ -78,7 +89,7 @@ def render_tool_calls(tool_calls: Any) -> None:
         success = result.get("success") is True
         title = "운영 정보 확인" if success else "운영 정보 조회 실패"
         icon = ":material/directions_walk:" if success else ":material/error:"
-        with st.container(border=True, key=f"tool_card_{index}"):
+        with st.container(border=True, key=f"{key_prefix}_tool_card_{index}"):
             st.subheader(title, icon=icon)
             st.caption(f"사용 도구 · {call.get('name', '알 수 없음')}")
             if success:

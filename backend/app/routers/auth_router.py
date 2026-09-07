@@ -14,15 +14,17 @@ def create_auth_router(users: UserRepository, sessions: AuthSessionRepository) -
 
     @router.post("/api/auth/login", response_model=LoginResponse)
     async def login(request: LoginRequest) -> LoginResponse:
-        if not users.validate_credentials(request.user_id, request.password):
+        identity = users.authenticate(request.user_id, request.password)
+        if identity is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="아이디 또는 비밀번호가 올바르지 않습니다.",
             )
         return LoginResponse(
             success=True,
-            user_id=request.user_id,
-            auth_session_id=sessions.create(request.user_id),
+            user_id=identity["user_id"],
+            role=identity["role"],
+            auth_session_id=sessions.create(identity["user_id"], identity["role"]),
         )
 
     @router.post("/api/auth/logout", status_code=status.HTTP_204_NO_CONTENT)

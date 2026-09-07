@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     ADMIN_TOKEN: str = ""
 
     # MCP 연결
-    MCP_SERVER_URL: str = "http://127.0.0.1:8100/mcp"
+    MCP_SERVER_URL: str = "http://127.0.0.1:8010/mcp"
     MCP_HOST: str = "127.0.0.1"
-    MCP_PORT: int = 8100
+    MCP_PORT: int = 8010
 
     # Backend 자체 주소
     BACKEND_URL: str = "http://127.0.0.1:8000"
