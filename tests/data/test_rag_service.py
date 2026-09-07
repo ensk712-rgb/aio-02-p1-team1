@@ -30,7 +30,9 @@ def test_representative_question_matches_expected_card(query, expected_doc_id):
 
 def test_representative_failure_example_unregistered_animal_has_no_card():
     # 5번째 대표 질문(실패 예): 카드가 없는 동물 -> 확인 불가로 이어져야 함
-    result = rag_service.retrieve_animal_info("사자는 어디서 살아?")
+    # (참고: "사자"는 이후 데이터셋에 ANIMAL-LION 카드가 추가되어 더 이상
+    #  실패 예로 쓸 수 없다. 카드가 없는 "유니콘"으로 대체한다.)
+    result = rag_service.retrieve_animal_info("유니콘은 어디서 살아?")
 
     assert result.success is True
     assert result.data["matched"] is False

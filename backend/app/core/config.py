@@ -85,6 +85,24 @@ def get_settings() -> Settings:
     return Settings()
 
 
+class _LazySettings:
+    """`from app.core.config import settings`를 지원하기 위한 지연 프록시.
+
+    모듈 import 시점에 바로 Settings()를 생성하면 .env에 이 프로젝트와 무관한
+    값(다른 실습의 APP_MODE 등)이 남아 있을 때 아무 코드도 실행하지 않았는데도
+    import 자체가 깨진다. 실제 속성에 접근하는 시점까지 생성을 미뤄서
+    get_settings()/try_get_settings()와 동일한 지연 로딩 원칙을 지킨다.
+    """
+
+    def __getattr__(self, name: str):
+        return getattr(get_settings(), name)
+
+
+# 다른 모듈에서 `from app.core.config import settings`로 바로 쓸 수 있도록 하는
+# 모듈 레벨 싱글턴(지연 로딩). 실제로는 get_settings()와 동일한 인스턴스를 가리킨다.
+settings = _LazySettings()
+
+
 def try_get_settings() -> "Settings | None":
     """Settings 로딩에 실패해도 예외를 올리지 않는 버전.
 
