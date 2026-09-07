@@ -1,8 +1,12 @@
-.env
 .venv/
+.env
 **/.venv/
 __pycache__/
 .pytest_cache/
 .pytest_tmp/
 *.py[cod]
 .streamlit/secrets.toml
+.DS_Store
+.vscode/
+# Generated local reports
+docs/reports/*.local.md
