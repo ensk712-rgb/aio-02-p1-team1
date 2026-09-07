@@ -99,13 +99,19 @@ class OpenAIProvider:
     def _to_openai_tool_schema(
         tool: ProviderToolSchema,
     ) -> dict[str, Any]:
-        """프로젝트 Tool Schema를 OpenAI Function Tool 형식으로 변환한다."""
+        """프로젝트 Tool Schema를 OpenAI Function Tool 형식으로 변환한다.
+
+        MCP가 제공하는 JSON Schema에는 OpenAI strict 모드가 허용하지 않는
+        선택 필드 또는 제약 표현이 포함될 수 있다. 따라서 OpenAI에는
+        strict 모드를 강제하지 않고, 실제 Tool 인자 검증은 Backend Executor의
+        Pydantic 모델이 담당한다.
+        """
         return {
             "type": "function",
             "name": tool["name"],
             "description": tool["description"],
             "parameters": tool["input_schema"],
-            "strict": True,
+            "strict": False,
         }
 
     @staticmethod
