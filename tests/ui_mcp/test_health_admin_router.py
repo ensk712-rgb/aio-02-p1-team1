@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from backend.app.routers.admin_router import create_admin_router
 from backend.app.routers.health_router import create_health_router
+from backend.app.repositories.auth_session_repository import AuthSessionRepository
 
 
 class FakeMcpHealth:
@@ -77,3 +78,30 @@ def test_admin_trace_returns_repository_contract() -> None:
     assert response.json() == {
         "runs": [{"run_id": "run_1", "status": "completed", "trace": []}]
     }
+
+
+def test_admin_trace_accepts_only_admin_login_session() -> None:
+    sessions = AuthSessionRepository()
+    user_session = sessions.create("TEST", "user")
+    admin_session = sessions.create("admin", "admin")
+    app = FastAPI()
+    app.include_router(
+        create_admin_router(
+            lambda session_id: [{"run_id": "run_role", "status": "completed", "trace": []}],
+            admin_token="",
+            auth_sessions=sessions,
+        )
+    )
+    client = TestClient(app)
+
+    denied = client.get(
+        "/api/admin/trace?session_id=guest-test",
+        headers={"X-Auth-Session": user_session},
+    )
+    assert denied.status_code == 403
+    accepted = client.get(
+        "/api/admin/trace?session_id=guest-test",
+        headers={"X-Auth-Session": admin_session},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["runs"][0]["run_id"] == "run_role"

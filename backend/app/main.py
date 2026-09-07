@@ -91,7 +91,11 @@ def create_app(
         )
     )
     application.include_router(
-        create_admin_router(trace_repository.list_runs, admin_token=settings.ADMIN_TOKEN)
+        create_admin_router(
+            trace_repository.list_runs,
+            admin_token=settings.ADMIN_TOKEN,
+            auth_sessions=auth_sessions,
+        )
     )
     return application
 

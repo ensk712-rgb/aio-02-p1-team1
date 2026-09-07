@@ -58,6 +58,14 @@ def _evaluate(scenario: dict[str, Any], response: dict[str, Any]) -> dict[str, A
     if sources_count < min_sources:
         failures.append(f"min_sources 미달: expected>={min_sources} actual={sources_count}")
 
+    answer = response.get("final_answer", "")
+    if not isinstance(answer, str):
+        answer = ""
+    forbidden_fragments = expected.get("forbidden_answer_fragments", [])
+    leaked_fragments = [fragment for fragment in forbidden_fragments if fragment in answer]
+    if leaked_fragments:
+        failures.append(f"금지 답변 포함: {leaked_fragments}")
+
     return {
         "id": scenario["id"],
         "priority": scenario.get("priority"),
@@ -97,6 +105,15 @@ async def run_scenarios(
     results: list[dict[str, Any]] = []
     try:
         for scenario in scenarios:
+            setup = scenario.get("setup")
+            if isinstance(setup, dict) and setup:
+                results.append(
+                    _skip_result(
+                        scenario,
+                        "장애 주입 전용 시나리오입니다. tests/ui_mcp의 대응 시험으로 판정하세요.",
+                    )
+                )
+                continue
             try:
                 response = await http_client.post(
                     ASK_PATH,

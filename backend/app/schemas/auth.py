@@ -13,4 +13,5 @@ class LoginResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     success: bool
     user_id: str
+    role: str
     auth_session_id: str

@@ -28,7 +28,7 @@
 
 ### L1 — Streamable HTTP MCP Server/Client
 
-1. `create_mcp_server()`가 `127.0.0.1:8100/mcp`에서 Streamable HTTP로 실행되도록 구성한다.
+1. `create_mcp_server()`가 `127.0.0.1:8010/mcp`에서 Streamable HTTP로 실행되도록 구성한다.
 2. `McpClient.list_tools()`가 SDK 객체를 `{name, description, input_schema}` dict로 정규화한다.
 3. `McpClient.call_tool()`은 Text content의 JSON을 공통 `ToolRunResult`로 검증한다. 비 JSON, 빈 content, 오류 응답은 성공으로 바꾸지 않는다.
 4. `check_health()`는 initialize + tools/list 성공 여부만 반환하며 예외 원문이나 URL의 민감정보를 외부로 노출하지 않는다.
@@ -91,6 +91,25 @@
 
 완료 판단: 120초 만료 및 중복 클릭이 서버에서 차단되고, 확인 전에는 관리자 예약 목록이 변경되지 않는다.
 
+### L8(P1) — 전용 체험 예약 화면
+
+1. 홈의 접힌 예약 기능을 유지하면서 좌측 메뉴에서 접근 가능한 전용 예약 페이지를 추가한다.
+2. 프로그램 선택 → 120초 내 사용자 확인 → 관리자 검토의 책임 경계를 화면에 설명한다.
+3. 기존 `AgentClient`와 승인 컴포넌트를 재사용하고 페이지에서 Backend/MCP를 직접 호출하지 않는다.
+4. 실제 API와 Fake 모드의 데이터 경계를 명시하고 로그인 Session State를 그대로 유지한다.
+
+완료 판단: 전용 페이지에서 예약 생성·확인·취소·내 예약 조회가 기존 L7 서버 계약으로 동작하고 화면 단위 시험과 브라우저 시연이 통과한다.
+
+### L9(P1) — 평가 시나리오와 최종 회귀
+
+1. `docs/eval-scenarios.md`에서 정상·비정상 Case를 실행 파일과 자동 시험에 일대일로 연결한다.
+2. 장애 주입용 A-03/A-14는 일반 HTTP 평가에서 거짓 실패로 판정하지 않고 대응 pytest로 분리한다.
+3. 승인·취소 동시 요청은 서버의 원자적 상태 전이로 하나만 성공하는지 시험한다.
+4. 다른 세션의 확인 실패가 원 사용자의 pending action을 소비하지 않는지 시험한다.
+5. Fake/실제 Backend 화면 표시는 실행 모드와 일치해야 한다.
+
+완료 판단: 전체 자동 시험, 실제 HTTP 평가, 사용자→관리자 예약 승인 브라우저 E2E가 모두 통과한다.
+
 ## 입력 계약 / 넘길 출력
 
 - 받는 입력: `AgentProfile.allowed_tools`, 공통 `ToolRunResult`, `AgentAskResponse`, 순수 조회 함수 3종, Trace Repository.
@@ -110,8 +129,10 @@
 | L3 | Fake Client Streamlit AppTest | 상태별 렌더링, 오류의 성공 표시 없음 | PASS — Fake 완료/추가정보/오류/새 대화 및 브라우저 확인 |
 | L4 | FastAPI TestClient | health 계약, admin token 차단/정상 조회 | PASS — 정상/503 및 인증 4경로 |
 | L5 | 로컬 MCP→Backend→Streamlit | N-01~N-04 화면 시연 | PASS — `main.py` 조립, 실제 HTTP MCP/API/브라우저 확인 |
-| L6 | Fake timeout/invalid result + UI | A-03/A-14 `error`, 허위 성공 없음 | PASS — timeout 2회 시도 및 MCP 중단 브라우저 오류 확인 |
-| L7(P1) | Pending Action API + Streamlit AppTest | 120초 TTL, 취소, 세션 불일치, 재사용 차단 | PASS — 132 tests 및 실제 브라우저 확인/취소 시연 |
+| L6 | Fake timeout/invalid result + UI | A-03/A-14 `error`, 허위 성공 없음 | PASS — timeout 2회, invalid 결과 무재시도, Client 오류 4종 구분, 전체 145 tests 및 브라우저 오류 확인 |
+| L7(P1) | Pending Action API + Streamlit AppTest | 120초 TTL, 취소, 세션 불일치, 재사용 차단 | PASS — 사용자 서버 판정 안내, 관리자 중복 클릭 방지, 전체 146 tests 및 사용자·관리자 브라우저 확인 |
+| L8(P1) | 전용 체험 예약 페이지 | 기존 L7 계약 재사용, 로그인 상태 유지, Mock 경계 표시 | PASS — 전체 147 tests 및 전용 페이지 브라우저 확인 |
+| L9(P1) | 평가 문서·P1 회귀·실제 E2E | Case-시험 추적, 경합·세션 보존, 실제/Mock 구분 | PASS — 전체 152 tests, HTTP 평가 12 PASS/0 FAIL/2 SKIP 및 실제 예약 승인 E2E 확인 |
 
 처음 확인한 실패: 저장소 전체 `python -m pytest -q`는 구현 시험 전에 `pytest.ini`의 `markers` 키가 두 번 선언되어 설정 파싱 오류로 중단된다. 이 파일은 손영민 소유이므로 별도 수정 요청 대상으로 남긴다.
 
