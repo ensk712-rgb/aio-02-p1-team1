@@ -13,12 +13,32 @@ def test_ask_omits_empty_session_id(monkeypatch) -> None:
 
     def fake_request(method, url, **kwargs):
         captured.update(kwargs["json"])
+        assert "X-Auth-Session" not in kwargs.get("headers", {})
         return httpx.Response(200, json={"status": "completed"})
 
     monkeypatch.setattr(httpx, "request", fake_request)
     response = AgentClient("http://backend").ask("질문", None)
     assert response["status"] == "completed"
     assert captured == {"message": "질문"}
+
+
+def test_ask_sends_auth_header_separately_from_conversation_session(monkeypatch) -> None:
+    captured = []
+
+    def fake_request(method, url, **kwargs):
+        captured.append((method, url, kwargs))
+        return httpx.Response(200, json={"status": "completed"})
+
+    monkeypatch.setattr(httpx, "request", fake_request)
+    client = AgentClient("http://backend")
+    client.ask("예약 문의", "guest-test", auth_session_id="auth-test")
+    client.ask("새 질문")
+
+    method, url, request = captured[0]
+    assert (method, url) == ("POST", "http://backend/api/agent/ask")
+    assert request["headers"] == {"X-Auth-Session": "auth-test"}
+    assert request["json"] == {"message": "예약 문의", "session_id": "guest-test"}
+    assert "X-Auth-Session" not in captured[1][2]["headers"]
 
 
 @pytest.mark.parametrize(

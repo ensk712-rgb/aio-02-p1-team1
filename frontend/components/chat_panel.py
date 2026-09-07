@@ -18,7 +18,11 @@ def _run_pending_question(client: AgentClientProtocol) -> None:
     st.session_state.messages.append({"role": "user", "content": question.strip()})
     with st.status("동물원 안내 정보를 확인하고 있습니다…", state="running") as status:
         try:
-            response = client.ask(question.strip(), st.session_state.session_id)
+            response = client.ask(
+                question.strip(),
+                st.session_state.session_id,
+                auth_session_id=st.session_state.auth_session_id,
+            )
             session_id = response.get("session_id")
             if isinstance(session_id, str) and session_id:
                 st.session_state.session_id = session_id

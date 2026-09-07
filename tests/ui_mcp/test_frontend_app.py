@@ -23,6 +23,24 @@ def _run_with_question(monkeypatch, question: str) -> AppTest:
     return at
 
 
+def test_chat_forwards_logged_in_auth_session(monkeypatch) -> None:
+    from frontend.clients.fake_agent_client import FakeAgentClient
+
+    captured = []
+    original_ask = FakeAgentClient.ask
+
+    def capture_ask(self, message, session_id=None, *, auth_session_id=None):
+        captured.append(auth_session_id)
+        return original_ask(
+            self, message, session_id, auth_session_id=auth_session_id
+        )
+
+    monkeypatch.setattr(FakeAgentClient, "ask", capture_ask)
+    at = _run_with_question(monkeypatch, "펭귄 먹이시간")
+    assert not at.exception
+    assert captured == ["auth_fake"]
+
+
 def test_home_dashboard_renders_design_sections(monkeypatch) -> None:
     monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
     at = AppTest.from_file(str(APP_PATH), default_timeout=10)
