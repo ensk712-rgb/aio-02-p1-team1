@@ -1,0 +1,36 @@
+"""Zoo 운영 조회용 Streamable HTTP MCP Server."""
+
+from __future__ import annotations
+
+from mcp.server.fastmcp import FastMCP
+
+from backend.app.core.config import get_settings
+from mcp_server.tools.zoo_read import (
+    check_closure_status,
+    find_habitat_route,
+    get_feeding_schedule,
+)
+
+
+def create_mcp_server(*, host: str | None = None, port: int | None = None) -> FastMCP:
+    settings = get_settings()
+    server = FastMCP(
+        "zoo-read",
+        host=host or settings.MCP_HOST,
+        port=port or settings.MCP_PORT,
+        streamable_http_path="/mcp",
+        json_response=True,
+        stateless_http=True,
+    )
+    server.tool()(get_feeding_schedule)
+    server.tool()(check_closure_status)
+    server.tool()(find_habitat_route)
+    return server
+
+
+def main() -> None:
+    create_mcp_server().run(transport="streamable-http")
+
+
+if __name__ == "__main__":
+    main()

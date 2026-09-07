@@ -1,6 +1,8 @@
 .venv/
 .env
 **/.venv/
+backend/.venv312/
+data/zoo_auth.db
 __pycache__/
 .pytest_cache/
 .pytest_tmp/

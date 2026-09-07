@@ -14,7 +14,7 @@ from backend.app.schemas.agent import (
     AgentState,
     ModelToolCall,
 )
-from backend.app.schemas.common import TraceItem
+from backend.app.schemas.common import Source, TraceItem
 from backend.app.schemas.tools import ToolCallRecord, ToolError
 from backend.app.tools.executor import ToolExecutor
 from backend.app.tools.policy import detect_forbidden_request
@@ -228,6 +228,22 @@ async def _execute_call(
         result=result,
     )
     state.tool_calls.append(record)
+
+    if call.name == "retrieve_animal_info":
+        chunks = result.data.get("chunks", [])
+        if isinstance(chunks, list):
+            state.sources.extend(
+                Source.model_validate(
+                    {
+                        "doc_id": chunk.get("doc_id"),
+                        "title": chunk.get("title"),
+                        "page": chunk.get("page"),
+                        "score": chunk.get("score"),
+                    }
+                )
+                for chunk in chunks
+                if isinstance(chunk, dict)
+            )
 
     state.trace.append(
         TraceItem(

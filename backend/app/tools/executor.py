@@ -1,5 +1,6 @@
 """Tool allowlist, 인자 검증, 반복 제한을 적용한 실행기를 구현한다."""
 
+import asyncio
 import json
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
@@ -48,12 +49,16 @@ class ToolExecutor:
         mcp_client: McpClientProtocol,
         max_same_tool_calls: int = 2,
         max_tool_calls: int = 8,
+        mcp_timeout_seconds: float = 10.0,
+        mcp_retry_count: int = 1,
     ) -> None:
         """실제 의존성을 생성자에서 주입한다."""
         self._rag_search = rag_search
         self._mcp_client = mcp_client
         self._max_same_tool_calls = max_same_tool_calls
         self._max_tool_calls = max_tool_calls
+        self._mcp_timeout_seconds = mcp_timeout_seconds
+        self._mcp_retry_count = mcp_retry_count
 
     async def get_tool_definitions(
         self,
@@ -83,29 +88,58 @@ class ToolExecutor:
 
         repeat_key = self._create_repeat_key(name, validated_arguments)
 
+        if name == "retrieve_animal_info":
+            limit_error = self._record_attempt(state, repeat_key)
+            if limit_error is not None:
+                return limit_error
+            rag_input = validated_arguments
+            return self._rag_search(rag_input.query, rag_input.collection)
+
+        for attempt in range(self._mcp_retry_count + 1):
+            limit_error = self._record_attempt(state, repeat_key)
+            if limit_error is not None:
+                return limit_error
+            try:
+                return await asyncio.wait_for(
+                    self._mcp_client.call_tool(
+                        name,
+                        validated_arguments.model_dump(),
+                    ),
+                    timeout=self._mcp_timeout_seconds,
+                )
+            except TimeoutError:
+                if attempt < self._mcp_retry_count:
+                    continue
+                return self._policy_error(
+                    code="MCP_TIMEOUT",
+                    message="운영 정보 조회 시간이 초과되었습니다.",
+                )
+            except Exception:
+                return self._policy_error(
+                    code="MCP_TOOL_ERROR",
+                    message="운영 정보 조회 중 오류가 발생했습니다.",
+                )
+
+        raise AssertionError("MCP 재시도 루프가 결과 없이 종료되었습니다.")
+
+    def _record_attempt(
+        self,
+        state: AgentState,
+        repeat_key: str,
+    ) -> ToolRunResult | None:
         if state.repeat_counts.get(repeat_key, 0) >= self._max_same_tool_calls:
             return self._policy_error(
                 code="REPEAT_LIMIT_REACHED",
                 message="같은 조회 요청이 반복되어 안전하게 중단했습니다.",
             )
-
         if state.tool_attempts >= self._max_tool_calls:
             return self._policy_error(
                 code="TOOL_CALL_LIMIT_REACHED",
                 message="도구 호출 한도를 초과하여 안전하게 중단했습니다.",
             )
-
         state.repeat_counts[repeat_key] = state.repeat_counts.get(repeat_key, 0) + 1
         state.tool_attempts += 1
-
-        if name == "retrieve_animal_info":
-            rag_input = validated_arguments
-            return self._rag_search(rag_input.query, rag_input.collection)
-
-        return await self._mcp_client.call_tool(
-            name,
-            validated_arguments.model_dump(),
-        )
+        return None
 
     def _validate_arguments(
         self,
