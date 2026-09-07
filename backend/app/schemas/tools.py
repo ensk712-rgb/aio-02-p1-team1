@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 
 class FeedingScheduleInput(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
@@ -162,3 +162,31 @@ class RouteInput(BaseModel):
 
     current: str = Field(min_length=1, max_length=100)
     destination: str = Field(min_length=1, max_length=100)
+
+class ReservationToolInput(BaseModel):
+    """Agent가 제안한 예약 Tool 인자를 엄격하게 검증한다.
+
+    이 모델은 사용자가 화면에서 보내는 예약 API 요청이 아니라,
+    Model Provider가 Agent Runtime에 제안한 Tool 인자를 검증한다.
+
+    문자열 형태의 인원 수, 범위 밖 인원 수, 정의되지 않은 추가 필드는
+    예약 생성 전에 차단한다.
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    program: StrictStr = Field(
+        min_length=1,
+        max_length=100,
+        description="예약할 체험 프로그램 이름",
+    )
+    visit_time: StrictStr = Field(
+        min_length=1,
+        max_length=50,
+        description="시간대를 포함한 예약 희망 시각 문자열",
+    )
+    headcount: StrictInt = Field(
+        ge=1,
+        le=10,
+        description="예약 인원 수. 1명 이상 10명 이하여야 한다.",
+    )

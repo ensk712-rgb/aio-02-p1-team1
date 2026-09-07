@@ -194,3 +194,43 @@ def test_openai_provider_requires_api_key_without_fake_client() -> None:
     """실제 Client를 생성할 때 API Key가 없으면 즉시 오류를 알려야 한다."""
     with pytest.raises(ValueError):
         OpenAIProvider(model="gpt-4.1-mini")
+
+def test_openai_provider_sends_reservation_tool_schema() -> None:
+    """예약 Tool Schema는 OpenAI 요청의 Function Tool 목록에 포함되어야 한다."""
+    from backend.app.tools.registry import RESERVATION_TOOL_SCHEMA
+
+    response = SimpleNamespace(
+        id="response_reservation",
+        output=[],
+        output_text="예약 정보를 확인하겠습니다.",
+    )
+    client = FakeOpenAIClient([response])
+    provider = OpenAIProvider(
+        model="gpt-4.1-mini",
+        client=client,
+    )
+
+    asyncio.run(
+        provider.next_turn(
+            question="내일 15시에 사육사 체험 2명 예약해 줘.",
+            instructions="예약은 사용자 확인 전 완료하지 마세요.",
+            tools=[RESERVATION_TOOL_SCHEMA],
+            previous_response_id=None,
+            tool_outputs=[],
+        )
+    )
+
+    sent_tools = client.responses.requests[0]["tools"]
+    reservation_tool = next(
+        tool
+        for tool in sent_tools
+        if tool["name"] == "reserve_experience_program"
+    )
+
+    assert reservation_tool["type"] == "function"
+    assert reservation_tool["parameters"]["required"] == [
+        "program",
+        "visit_time",
+        "headcount",
+    ]
+    assert reservation_tool["parameters"]["additionalProperties"] is False
