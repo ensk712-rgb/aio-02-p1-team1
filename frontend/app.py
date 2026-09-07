@@ -205,10 +205,10 @@ if not st.session_state.messages:
             "- 정문에서 해양관까지 어떻게 가나요?"
         )
 
-for message in st.session_state.messages:
+for msg_index, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         if message["role"] == "assistant":
-            render_agent_response(message["response"])
+            render_agent_response(message["response"], key_prefix=f"history_{msg_index}")
         else:
             st.markdown(message["content"])
 
@@ -227,6 +227,8 @@ if question:
             st.session_state.messages.append(
                 {"role": "assistant", "response": response}
             )
-            render_agent_response(response)
+            render_agent_response(
+                response, key_prefix=f"history_{len(st.session_state.messages) - 1}"
+            )
         except AgentClientError as error:
             st.error(str(error), icon=":material/error:")
