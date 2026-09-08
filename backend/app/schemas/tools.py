@@ -159,6 +159,18 @@ class TicketScopeInput(BaseModel):
     )
 
 
+class CourseInfoInput(BaseModel):
+    """관람 코스 조회 Tool의 엄격한 입력 형식이다.
+
+    name=None이면 전체 코스 목록을, 지정하면 해당 코스 하나를 조회한다
+    (check_closure_status의 habitat=None 패턴과 동일).
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: StrictStr | None = Field(default=None, min_length=1, max_length=100)
+
+
 class PublicWeatherInput(BaseModel):
     """Agent가 날씨 조회 Tool에 전달하는 입력 계약이다.
 
