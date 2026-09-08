@@ -23,6 +23,7 @@ def _run_pending_question(client: AgentClientProtocol) -> None:
                 st.session_state.session_id,
                 auth_session_id=st.session_state.auth_session_id,
             )
+
             session_id = response.get("session_id")
             if isinstance(session_id, str) and session_id:
                 st.session_state.session_id = session_id
