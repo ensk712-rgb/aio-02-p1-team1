@@ -44,7 +44,7 @@ def render_page_hero(title: str, subtitle: str, image_name: str, eyebrow: str) -
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
     st.html(
         f'<section class="zoo-page-hero" style="background-image:url(data:{mime};base64,{encoded})">'
-        f'<div class="zoo-kicker" style="color:#dff29b">{html.escape(eyebrow)}</div>'
+        f'<div class="zoo-kicker" style="color:var(--leaf-bright)">{html.escape(eyebrow)}</div>'
         f'<h1>{html.escape(title)}</h1><p>{html.escape(subtitle)}</p></section>'
     )
 

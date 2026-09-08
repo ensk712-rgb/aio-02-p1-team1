@@ -28,13 +28,15 @@ st.set_page_config(
 
 st.html("""
 <style>
-:root { --admin-navy:#102f3a; --admin-cyan:#19a9c6; --admin-paper:#f4f8f7; }
-[data-testid="stAppViewContainer"] { background:linear-gradient(135deg,#edf7f4,#f9f5e9); }
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+:root { --ink-panel:#0e2a21; --ink-panel-2:#163b30; --leaf-bright:#9fd7b4; --moss-soft:#e6f2ec; --sand:#e1e9e4; }
+html, body, [data-testid="stAppViewContainer"] { font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Noto Sans KR","Malgun Gothic",sans-serif; }
+[data-testid="stAppViewContainer"] { background:linear-gradient(135deg,#f3f7f4,var(--moss-soft)); }
 [data-testid="stHeader"] { background:transparent; }
 .block-container { max-width:1280px; padding-top:1.4rem; }
-.admin-hero { padding:32px 38px; border-radius:24px; color:white; background:radial-gradient(circle at 85% 20%,rgba(75,220,184,.35),transparent 28%),linear-gradient(105deg,#07303a,#0f7871); box-shadow:0 18px 45px rgba(16,47,58,.18); }
+.admin-hero { padding:32px 38px; border-radius:14px; color:white; background:radial-gradient(circle at 85% 20%,rgba(159,215,180,.32),transparent 28%),linear-gradient(105deg,var(--ink-panel),var(--ink-panel-2)); box-shadow:0 18px 45px rgba(14,42,33,.20); }
 .admin-hero h1 { margin:.2rem 0; }
-div[data-testid="stVerticalBlockBorderWrapper"] { border-color:#d7e6df; box-shadow:0 10px 26px rgba(16,47,58,.07); }
+div[data-testid="stVerticalBlockBorderWrapper"] { border-color:var(--sand); box-shadow:0 10px 26px rgba(14,42,33,.07); }
 </style>
 """)
 
