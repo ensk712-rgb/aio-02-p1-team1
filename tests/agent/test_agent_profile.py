@@ -6,7 +6,7 @@ from backend.app.agents.registry import get_agent_profile, list_agent_profiles
 
 
 def test_zoo_guide_profile_has_p0_tools_and_ticket_scope() -> None:
-    """zoo_guide는 P0의 세 운영 조회 Tool과 P1 lookup_ticket_scope, 예약 Tool을 허용해야 한다."""
+    """zoo_guide는 P0·P1의 허용 운영 조회 Tool과 예약 Tool을 가져야 한다."""
     profile = get_agent_profile("zoo_guide")
 
     tool_policies = {tool.name: tool for tool in profile.allowed_tools}
@@ -29,12 +29,23 @@ def test_zoo_guide_profile_allows_animal_cards_only() -> None:
 
     assert profile.allowed_rag_collections == ("animal_cards",)
 
+
 def test_zoo_guide_profile_includes_reservation_safety_instructions() -> None:
     """예약에는 필수 정보 확인과 사용자 확인 전 실행 금지 지침이 있어야 한다."""
     profile = get_agent_profile("zoo_guide")
 
     assert "프로그램, 방문 시각, 인원" in profile.instructions
     assert "사용자 확인 전에는 예약 완료를 안내하지 마세요." in profile.instructions
+
+
+def test_zoo_guide_profile_includes_course_safety_instructions() -> None:
+    """코스 추천은 Tool 조회와 실제 total_minutes를 근거로 해야 한다."""
+    profile = get_agent_profile("zoo_guide")
+
+    assert "get_course_info Tool" in profile.instructions
+    assert "total_minutes가 그 시간 이하인 코스만 추천하세요." in profile.instructions
+    assert "아이동반 코스를 먼저 확인" in profile.instructions
+    assert "임의 코스를 만들지 말고" in profile.instructions
 
 
 def test_unknown_agent_id_is_rejected() -> None:

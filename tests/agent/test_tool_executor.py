@@ -14,6 +14,7 @@ class FakeMcpClient:
     """MCP 호출을 기록하고 미리 정한 결과를 반환하는 테스트용 Client다."""
 
     def __init__(self) -> None:
+        """아직 호출되지 않은 빈 기록 목록을 만든다."""
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     async def call_tool(
@@ -136,6 +137,48 @@ def test_executor_runs_allowed_mcp_tool() -> None:
         ("get_feeding_schedule", {"habitat": "해양관"})
     ]
     assert state.tool_attempts == 1
+
+
+def test_executor_runs_course_info_tool_with_empty_arguments() -> None:
+    """코스 목록 Tool은 빈 인자를 허용하고 MCP에 빈 객체를 전달해야 한다."""
+    mcp_client = FakeMcpClient()
+    rag_calls: list[tuple[str, str]] = []
+    executor = create_executor(mcp_client, rag_calls)
+    state = create_state()
+
+    result = asyncio.run(
+        executor.execute_tool_safely(
+            "get_course_info",
+            {},
+            profile=get_agent_profile("zoo_guide"),
+            state=state,
+        )
+    )
+
+    assert result.success is True
+    assert mcp_client.calls == [("get_course_info", {"name": None})]
+    assert state.tool_attempts == 1
+
+
+def test_executor_blocks_invalid_course_info_arguments_without_execution() -> None:
+    """코스 Tool의 계약 밖 인자는 MCP 호출 전에 차단해야 한다."""
+    mcp_client = FakeMcpClient()
+    rag_calls: list[tuple[str, str]] = []
+    executor = create_executor(mcp_client, rag_calls)
+
+    result = asyncio.run(
+        executor.execute_tool_safely(
+            "get_course_info",
+            {"name": "아이동반 코스", "available_minutes": 60},
+            profile=get_agent_profile("zoo_guide"),
+            state=create_state(),
+        )
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.code == "INVALID_TOOL_ARGUMENTS"
+    assert mcp_client.calls == []
 
 
 def test_executor_runs_allowed_rag_tool() -> None:
