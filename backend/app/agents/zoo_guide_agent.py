@@ -58,5 +58,6 @@ def create_zoo_guide_profile() -> AgentProfile:
                 ),
             ),
         ),
+
         allowed_rag_collections=("animal_cards",),
     )
