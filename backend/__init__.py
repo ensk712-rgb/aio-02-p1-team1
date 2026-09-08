@@ -1,1 +1,1 @@
-"""Zoo Visit Guide 백엔드 패키지의 시작점이다."""
+"""FastAPI 애플리케이션과 Agent 기능을 담는 패키지다."""

@@ -117,7 +117,15 @@ class FakeAgentClient:
             "app_mode": "mock",
         }
 
-    def ask(self, message: str, session_id: str | None = None) -> dict[str, Any]:
+
+    def ask(
+        self,
+        message: str,
+        session_id: str | None = None,
+        *,
+        auth_session_id: str | None = None,
+    ) -> dict[str, Any]:
+=======
         client_error_kinds = {
             "client_connection": ("안내 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.", "connection"),
             "client_timeout": ("응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.", "timeout"),
