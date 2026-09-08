@@ -1,0 +1,7 @@
+# 최두나 담당 P0 데이터/Config/저장소/RAG/평가 영역의 Python 패키지
+pydantic>=2.6,<3
+pydantic-settings>=2.2,<3
+python-dotenv>=1.0,<2
+httpx>=0.27,<1  # eval_service가 Backend를 HTTP로 호출 (ui-mcp.txt와 중복 명시, 두 곳 모두 필요)
+pytest>=8.0,<9
+tzdata>=2024.1; sys_platform == "win32"  # Windows에는 IANA tzdata가 기본 포함되지 않음

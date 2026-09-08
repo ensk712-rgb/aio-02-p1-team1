@@ -1,0 +1,1 @@
+[{"id": "N-01", "priority": "P0", "message": "\ud638\ub791\uc774\ub294 \uc5b4\ub514\uc5d0\uc11c \uc0b4\uace0 \ubb34\uc5c7\uc744 \uba39\uc5b4?", "expected": {"status": "completed", "required_tools": ["retrieve_animal_info"], "forbidden_tools": [], "min_sources": 1}, "setup": {"mcp_failure": "timeout"}}]

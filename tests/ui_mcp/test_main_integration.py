@@ -9,12 +9,12 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.core.config import Settings
 from backend.app.main import create_app
 from backend.app.repositories import session_repository, trace_repository
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TEST_PORT = 18101
@@ -34,6 +34,7 @@ def _wait_for_port(process: subprocess.Popen[str], timeout: float = 10) -> None:
     raise AssertionError("MCP Server 시작 timeout")
 
 
+@pytest.mark.integration
 def test_main_connects_n01_to_n04_through_real_mcp() -> None:
     env = os.environ.copy()
     env.update({"APP_MODE": "mock", "MCP_HOST": "127.0.0.1", "MCP_PORT": str(TEST_PORT)})

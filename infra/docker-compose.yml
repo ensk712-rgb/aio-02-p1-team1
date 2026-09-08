@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: zoo
+      POSTGRES_PASSWORD: zoo
+      POSTGRES_DB: zoo
+    ports:
+      - "5432:5432"
+    volumes:
+      - zoo_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6380:6379"  # 6379는 다른 프로젝트 컨테이너가 이미 점유 중이라 6380으로 매핑
+
+volumes:
+  zoo_postgres_data:

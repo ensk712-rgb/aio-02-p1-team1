@@ -1,10 +1,11 @@
-"""운영 조회 Tool 3종 (최두나 소유, 작업지시서 v1.1 4.1/4.2절).
+"""운영 조회 Tool (최두나 소유, 작업지시서 v1.1 4.1/4.2/11.4절).
 
 이 모듈은 순수 Python 조회 함수만 담는다. FastAPI 앱, Agent Runtime, MCP Client를
 import하지 않는다 — mcp_server 프로세스가 이 모듈을 그대로 재사용(코드 재사용)하기
 때문에, 여기서 FastAPI/Runtime을 import하면 순환 의존이 생긴다.
 
-위험도: 셋 다 read.
+위험도: 전부 read. P0 3종(get_feeding_schedule/check_closure_status/
+find_habitat_route) + P1 lookup_ticket_scope/get_course_info.
 """
 
 from __future__ import annotations
@@ -22,8 +23,10 @@ from backend.app.core.config import DATA_DIR, try_get_settings
 from backend.app.schemas.common import ToolError, ToolRunResult
 from backend.app.schemas.tools import (
     ClosureStatusInput,
+    CourseInfoInput,
     FeedingScheduleInput,
     RouteInput,
+    TicketScopeInput,
 )
 
 SOURCE_NAME = "mock_zoo_operations"
@@ -55,6 +58,23 @@ def _normalize_alias(value: str) -> str:
 def normalize_habitat(raw: str) -> str | None:
     """별칭을 포함해 정규 시설명으로 변환한다. 등록되지 않은 시설은 None."""
     return _habitat_alias_map().get(_normalize_alias(raw))
+
+
+@lru_cache
+def _ticket_alias_map() -> dict[str, str]:
+    """별칭(공백 제거·소문자) -> 정규 티켓 종류명."""
+    payload = _load_json("operations/tickets.json")
+    mapping: dict[str, str] = {}
+    for ticket in payload["tickets"]:
+        canonical = ticket["ticket_type"]
+        for alias in ticket["aliases"]:
+            mapping[_normalize_alias(alias)] = canonical
+    return mapping
+
+
+def normalize_ticket_type(raw: str) -> str | None:
+    """별칭을 포함해 정규 티켓 종류명으로 변환한다. 등록되지 않은 종류는 None."""
+    return _ticket_alias_map().get(_normalize_alias(raw))
 
 
 def _resolve_now() -> datetime:
@@ -257,6 +277,97 @@ def find_habitat_route(
             "estimated_minutes": row["estimated_minutes"],
             "as_of": now.isoformat(),
         },
+        error=None,
+        source=SOURCE_NAME,
+        retrieved_at=now,
+    )
+
+
+def lookup_ticket_scope(ticket_type: str, *, now: datetime | None = None) -> ToolRunResult:
+    """ticket_type으로 관람 가능한 전시관(included)과 제외 항목(excluded)을 조회한다.
+
+    작업지시서 v1.1 11.4절 계약: data={ticket_type, included, excluded}.
+    시간 기준 데이터가 아니므로 as_of는 포함하지 않는다(다른 3종 Tool과 차이).
+    """
+    try:
+        validated = TicketScopeInput(ticket_type=ticket_type)
+    except ValidationError as exc:
+        return _not_found_result("INVALID_ARGUMENT", str(exc))
+
+    now = now or _resolve_now()
+    canonical = normalize_ticket_type(validated.ticket_type)
+    if canonical is None:
+        return _not_found_result(
+            "TICKET_TYPE_NOT_FOUND", f"'{ticket_type}'은(는) 등록된 티켓 종류가 아닙니다."
+        )
+
+    payload = _load_json("operations/tickets.json")
+    row = next(r for r in payload["tickets"] if r["ticket_type"] == canonical)
+
+    return ToolRunResult(
+        success=True,
+        data={
+            "ticket_type": row["ticket_type"],
+            "included": row["included"],
+            "excluded": row["excluded"],
+        },
+        error=None,
+        source=SOURCE_NAME,
+        retrieved_at=now,
+    )
+
+
+def get_course_info(name: str | None = None, *, now: datetime | None = None) -> ToolRunResult:
+    """name=None이면 전체 추천 코스 목록을, 지정하면 해당 코스 하나를 items 목록으로 반환한다.
+
+    각 코스는 순서가 있는 시설 목록(habitats)과 예상 총 관람 시간(total_minutes)을
+    담는다. 티켓 조회와 마찬가지로 시간 기준 데이터가 아니므로 as_of는 포함하지
+    않는다.
+    """
+    try:
+        validated = CourseInfoInput(name=name)
+    except ValidationError as exc:
+        return _not_found_result("INVALID_ARGUMENT", str(exc))
+
+    now = now or _resolve_now()
+    payload = _load_json("operations/courses.json")
+    all_rows = payload["courses"]
+
+    if validated.name is None:
+        items = [
+            {
+                "name": row["name"],
+                "description": row["description"],
+                "habitats": row["habitats"],
+                "total_minutes": row["total_minutes"],
+            }
+            for row in all_rows
+        ]
+        return ToolRunResult(
+            success=True,
+            data={"items": items},
+            error=None,
+            source=SOURCE_NAME,
+            retrieved_at=now,
+        )
+
+    row = next((r for r in all_rows if r["name"] == validated.name), None)
+    if row is None:
+        return _not_found_result(
+            "COURSE_NOT_FOUND", f"'{name}'은(는) 등록된 코스가 아닙니다."
+        )
+
+    items = [
+        {
+            "name": row["name"],
+            "description": row["description"],
+            "habitats": row["habitats"],
+            "total_minutes": row["total_minutes"],
+        }
+    ]
+    return ToolRunResult(
+        success=True,
+        data={"items": items},
         error=None,
         source=SOURCE_NAME,
         retrieved_at=now,

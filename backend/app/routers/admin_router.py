@@ -3,19 +3,28 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Annotated
+from typing import Any, Annotated, Protocol
 
 from fastapi import APIRouter, Header, HTTPException, status
 
 from backend.app.core.auth import AdminAuthenticationError, verify_admin_token
-from backend.app.repositories.auth_session_repository import AuthSessionRepository
+
+
+class AuthSessionRoleLookup(Protocol):
+    """관리자 라우터가 로그인 세션 저장소에 요구하는 최소 기능이다.
+
+    로그인/권한 시스템(AuthSessionRepository)은 이번 로드맵 범위 밖이라
+    구체 클래스를 import하지 않고 구조적 타입으로만 받는다.
+    """
+
+    def get_role(self, auth_session_id: str | None) -> str | None: ...
 
 
 def create_admin_router(
     list_runs: Callable[[str], list[dict[str, Any]]],
     *,
     admin_token: str,
-    auth_sessions: AuthSessionRepository | None = None,
+    auth_sessions: AuthSessionRoleLookup | None = None,
 ) -> APIRouter:
     router = APIRouter(tags=["admin"])
 

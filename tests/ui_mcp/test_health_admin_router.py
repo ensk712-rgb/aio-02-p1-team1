@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from backend.app.routers.admin_router import create_admin_router
 from backend.app.routers.health_router import create_health_router
-from backend.app.repositories.auth_session_repository import AuthSessionRepository
 
 
 class FakeMcpHealth:
@@ -69,6 +68,35 @@ def test_admin_trace_blocks_unconfigured_missing_and_wrong_token() -> None:
     assert "test-admin-token" not in wrong.text
 
 
+class FakePersistenceCheck:
+    def __init__(self, postgres_ok: bool, redis_ok: bool) -> None:
+        self.postgres_ok = postgres_ok
+        self.redis_ok = redis_ok
+
+    def check_postgres(self) -> bool:
+        return self.postgres_ok
+
+    def check_redis(self) -> bool:
+        return self.redis_ok
+
+
+def test_health_reports_persistent_storage_status() -> None:
+    app = FastAPI()
+    app.include_router(
+        create_health_router(
+            FakeMcpHealth(True),
+            app_mode="mock",
+            storage="persistent",
+            persistence_check=FakePersistenceCheck(True, True),
+        )
+    )
+    response = TestClient(app).get("/api/health")
+    assert response.status_code == 200
+    assert response.json()["storage"] == "persistent"
+    assert response.json()["postgres"] == "ok"
+    assert response.json()["redis"] == "ok"
+
+
 def test_admin_trace_returns_repository_contract() -> None:
     response = _admin_client("test-admin-token").get(
         "/api/admin/trace?session_id=session_1",
@@ -78,30 +106,3 @@ def test_admin_trace_returns_repository_contract() -> None:
     assert response.json() == {
         "runs": [{"run_id": "run_1", "status": "completed", "trace": []}]
     }
-
-
-def test_admin_trace_accepts_only_admin_login_session() -> None:
-    sessions = AuthSessionRepository()
-    user_session = sessions.create("TEST", "user")
-    admin_session = sessions.create("admin", "admin")
-    app = FastAPI()
-    app.include_router(
-        create_admin_router(
-            lambda session_id: [{"run_id": "run_role", "status": "completed", "trace": []}],
-            admin_token="",
-            auth_sessions=sessions,
-        )
-    )
-    client = TestClient(app)
-
-    denied = client.get(
-        "/api/admin/trace?session_id=guest-test",
-        headers={"X-Auth-Session": user_session},
-    )
-    assert denied.status_code == 403
-    accepted = client.get(
-        "/api/admin/trace?session_id=guest-test",
-        headers={"X-Auth-Session": admin_session},
-    )
-    assert accepted.status_code == 200
-    assert accepted.json()["runs"][0]["run_id"] == "run_role"

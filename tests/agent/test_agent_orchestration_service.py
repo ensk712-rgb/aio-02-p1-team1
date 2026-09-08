@@ -76,11 +76,25 @@ class FakeMcpClient:
         raise AssertionError(f"예상하지 못한 MCP 호출: {name}, {arguments}")
 
 
+class FakeSessionMemoryRepository:
+    """대화 기억 조회/저장을 흉내 내는 테스트용 저장소다."""
+
+    def __init__(self) -> None:
+        self.stored: dict[str, list[dict]] = {}
+
+    def get_recent(self, session_id: str) -> list[dict]:
+        return self.stored.get(session_id, [])
+
+    def append_message(self, session_id: str, role: str, text: str) -> None:
+        self.stored.setdefault(session_id, []).append({"role": role, "text": text})
+
+
 def create_service(
     *,
     session_repository: FakeSessionRepository,
     trace_repository: FakeTraceRepository,
     provider: ScriptedMockProvider,
+    session_memory_repository: FakeSessionMemoryRepository | None = None,
 ) -> AgentOrchestrationService:
     """테스트 Fake 의존성을 조립한 Service를 생성한다."""
 
@@ -96,6 +110,7 @@ def create_service(
     return AgentOrchestrationService(
         session_repository=session_repository,
         trace_repository=trace_repository,
+        session_memory_repository=session_memory_repository or FakeSessionMemoryRepository(),
         provider=provider,
         executor=executor,
         settings=RuntimeSettings(),
@@ -177,3 +192,32 @@ def test_service_rejects_invalid_session_before_runtime() -> None:
 
     assert provider.remaining_turns == 1
     assert trace_repository.saved_runs == []
+
+
+def test_service_reads_and_appends_session_memory() -> None:
+    """handle_ask는 실행 전 history를 읽고, 실행 후 질문/답변을 저장해야 한다."""
+    session_repository = FakeSessionRepository()
+    trace_repository = FakeTraceRepository()
+    session_memory_repository = FakeSessionMemoryRepository()
+    session_memory_repository.stored["session_existing"] = [
+        {"role": "user", "text": "호랑이는 어디 살아?"}
+    ]
+
+    service = create_service(
+        session_repository=session_repository,
+        trace_repository=trace_repository,
+        provider=ScriptedMockProvider(
+            [ModelTurn(response_id="response_1", text="맹수관에서 서식합니다.")]
+        ),
+        session_memory_repository=session_memory_repository,
+    )
+
+    response = asyncio.run(
+        service.handle_ask(
+            AgentAskRequest(message="먹이는 뭐 먹어?", session_id="session_existing")
+        )
+    )
+
+    stored = session_memory_repository.stored["session_existing"]
+    assert stored[-2] == {"role": "user", "text": "먹이는 뭐 먹어?"}
+    assert stored[-1] == {"role": "agent", "text": response.final_answer}

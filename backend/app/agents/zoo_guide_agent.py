@@ -18,6 +18,7 @@ def create_zoo_guide_profile() -> AgentProfile:
             "지금 펭귄 먹이시간이야?",
             "정문에서 해양관까지 어떻게 가?",
             "사육사 체험을 2명 예약해 줘.",
+            "아이랑 갈 만한 짧은 코스 있어?",
         ),
         instructions=(
             "필요한 경우에만 제공된 Tool을 사용하세요. "
@@ -50,6 +51,16 @@ def create_zoo_guide_profile() -> AgentProfile:
                 description="현재 위치에서 목적지까지의 관람 경로를 조회한다.",
             ),
             AgentToolPolicy(
+                name="lookup_ticket_scope",
+                risk="read",
+                description="티켓 종류별로 관람 가능한 전시관과 제외 항목을 조회한다.",
+            ),
+            AgentToolPolicy(
+                name="get_course_info",
+                risk="read",
+                description="전체 또는 특정 이름의 추천 관람 코스(시설 순서·예상 총 시간)를 조회한다.",
+            ),
+            AgentToolPolicy(
                 name="reserve_experience_program",
                 risk="change",
                 description=(
@@ -58,6 +69,5 @@ def create_zoo_guide_profile() -> AgentProfile:
                 ),
             ),
         ),
-
         allowed_rag_collections=("animal_cards",),
     )

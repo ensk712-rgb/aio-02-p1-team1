@@ -73,6 +73,8 @@ def test_list_tools_exposes_fixed_names_and_schemas(mcp_process) -> None:
         "check_closure_status",
         "find_habitat_route",
         "lookup_public_weather",
+        "lookup_ticket_scope",
+        "get_course_info",
     }
     assert by_name["get_feeding_schedule"]["input_schema"]["required"] == ["habitat"]
     assert by_name["check_closure_status"]["input_schema"].get("required", []) == []

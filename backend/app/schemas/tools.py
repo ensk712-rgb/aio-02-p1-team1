@@ -5,39 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 
+from backend.app.schemas.common import ToolError, ToolRunResult  # noqa: F401 (재노출)
 
 RiskLevel = Literal["read", "change", "forbidden"]
-
-
-class ToolError(BaseModel):
-    """Tool 실행 실패 시 사용자에게 안전하게 전달할 오류 정보다."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    code: str = Field(min_length=1)
-    message: str = Field(min_length=1)
-
-
-class ToolRunResult(BaseModel):
-    """RAG 또는 Tool 한 번의 실행 결과다."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    success: bool
-    data: dict[str, Any] = Field(default_factory=dict)
-    error: ToolError | None = None
-    source: str = Field(min_length=1)
-    retrieved_at: datetime
-
-    @field_validator("retrieved_at")
-    @classmethod
-    def validate_timezone(cls, value: datetime) -> datetime:
-        """조회 시각에는 시간대 정보가 반드시 있어야 한다."""
-        if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError("retrieved_at에는 시간대 정보가 필요합니다.")
-        return value
 
 
 class ToolCallRecord(BaseModel):
@@ -131,6 +103,17 @@ class HabitatRouteData(BaseModel):
     estimated_minutes: int = Field(ge=0)
     as_of: datetime
 
+class ChunkInput(BaseModel):
+    """document_repository.insert_chunks에 전달하는 청크 한 건이다."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    doc_id: str = Field(min_length=1)
+    collection: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    page: int | None = Field(default=None, ge=1)
+    text: str = Field(min_length=1)
+    keywords: list[str] = Field(default_factory=list)
 
 class ReservationToolInput(BaseModel):
     """Agent가 제안한 예약 Tool 인자를 엄격하게 검증한다.
@@ -172,6 +155,18 @@ class TicketScopeInput(BaseModel):
         max_length=100,
         description="조회할 티켓 종류 이름",
     )
+
+
+class CourseInfoInput(BaseModel):
+    """관람 코스 조회 Tool의 엄격한 입력 형식이다.
+
+    name=None이면 전체 코스 목록을, 지정하면 해당 코스 하나를 조회한다
+    (check_closure_status의 habitat=None 패턴과 동일).
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: StrictStr | None = Field(default=None, min_length=1, max_length=100)
 
 
 class PublicWeatherInput(BaseModel):

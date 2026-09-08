@@ -8,20 +8,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-"""여러 기능에서 공통으로 사용하는 데이터 모델을 정의한다."""
-
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Source(BaseModel):
-    doc_id: str
-    title: str
-    page: int | None = None
-    score: float = Field(ge=0, le=1)
-
-
     """RAG 검색으로 답변의 근거가 된 문서 정보를 표현한다."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -48,18 +40,35 @@ class TraceItem(BaseModel):
     )
 
 class ToolError(BaseModel):
-    """내부 예외 원문·키를 담지 않는다."""
+    """Tool 실행 실패 시 사용자에게 안전하게 전달할 오류 정보다.
 
-    code: str
-    message: str
+    내부 예외 원문·키를 담지 않는다.
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    code: str = Field(min_length=1)
+    message: str = Field(min_length=1)
 
 
 class ToolRunResult(BaseModel):
+    """RAG 또는 MCP Tool을 한 번 실행한 결과다."""
+
+    model_config = ConfigDict(extra="forbid")
+
     success: bool
     data: dict[str, Any] = Field(default_factory=dict)
     error: ToolError | None = None
-    source: str
+    source: str = Field(min_length=1)
     retrieved_at: datetime
+
+    @field_validator("retrieved_at")
+    @classmethod
+    def validate_timezone(cls, value: datetime) -> datetime:
+        """시간대 없는 조회 시각을 거절한다."""
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("retrieved_at에는 시간대 정보가 필요합니다.")
+        return value
 
 
 class ToolCallRecord(BaseModel):
