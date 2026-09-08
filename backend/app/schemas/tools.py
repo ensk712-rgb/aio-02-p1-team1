@@ -1,50 +1,11 @@
-"""운영 Tool 입력 검증 모델 (작업지시서 v1.1 4.1절).
-
-- strict=True: 숫자·목록 등을 문자열로 조용히 변환하지 않는다 (A-05: current=123 등 차단).
-- extra="forbid": 정의되지 않은 추가 필드를 거절한다.
-- 위치 문자열은 공백 제거 후 1~100자.
-"""
+"""RAG와 운영 Tool의 입력·출력·오류 계약을 정의한다."""
 
 from __future__ import annotations
-
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-
-class FeedingScheduleInput(BaseModel):
-    model_config = ConfigDict(strict=True, extra="forbid")
-
-    habitat: str = Field(min_length=1, max_length=100)
-
-    @field_validator("habitat")
-    @classmethod
-    def _strip(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("habitat은 공백만으로 구성될 수 없다")
-        return stripped
-
-
-class ClosureStatusInput(BaseModel):
-    model_config = ConfigDict(strict=True, extra="forbid")
-
-    habitat: str | None = Field(default=None, min_length=1, max_length=100)
-
-    @field_validator("habitat")
-    @classmethod
-    def _strip(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("habitat은 공백만으로 구성될 수 없다")
-        return stripped
-
-"""RAG와 MCP Tool의 입력·출력·오류 계약을 정의한다."""
 
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 
 
 RiskLevel = Literal["read", "change", "forbidden"]
@@ -60,7 +21,7 @@ class ToolError(BaseModel):
 
 
 class ToolRunResult(BaseModel):
-    """RAG 또는 MCP Tool을 한 번 실행한 결과다."""
+    """RAG 또는 Tool 한 번의 실행 결과다."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -73,14 +34,14 @@ class ToolRunResult(BaseModel):
     @field_validator("retrieved_at")
     @classmethod
     def validate_timezone(cls, value: datetime) -> datetime:
-        """시간대 없는 조회 시각을 거절한다."""
+        """조회 시각에는 시간대 정보가 반드시 있어야 한다."""
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("retrieved_at에는 시간대 정보가 필요합니다.")
         return value
 
 
 class ToolCallRecord(BaseModel):
-    """Runtime이 실제로 시도한 Tool 호출과 결과를 저장한다."""
+    """Runtime이 실제로 시도한 Tool 호출과 결과를 기록한다."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -91,7 +52,7 @@ class ToolCallRecord(BaseModel):
 
 
 class FeedingScheduleInput(BaseModel):
-    """먹이시간 Tool이 허용하는 엄격한 입력 형식이다."""
+    """먹이시간 조회 Tool의 엄격한 입력 형식이다."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -99,7 +60,7 @@ class FeedingScheduleInput(BaseModel):
 
 
 class ClosureStatusInput(BaseModel):
-    """휴장 상태 Tool이 허용하는 엄격한 입력 형식이다."""
+    """휴장 상태 조회 Tool의 엄격한 입력 형식이다."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -107,7 +68,7 @@ class ClosureStatusInput(BaseModel):
 
 
 class HabitatRouteInput(BaseModel):
-    """경로 조회 Tool이 허용하는 엄격한 입력 형식이다."""
+    """Agent Runtime 경로 조회 Tool의 엄격한 입력 형식이다."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -115,8 +76,20 @@ class HabitatRouteInput(BaseModel):
     destination: StrictStr = Field(min_length=1, max_length=100)
 
 
+class RouteInput(BaseModel):
+    """운영 조회 함수가 사용하는 경로 조회 입력 형식이다.
+
+    기존 ``zoo_tools.py``가 이 이름을 사용하므로 이름을 유지한다.
+    """
+
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    current: str = Field(min_length=1, max_length=100)
+    destination: str = Field(min_length=1, max_length=100)
+
+
 class FeedingScheduleData(BaseModel):
-    """먹이시간 조회 Tool이 성공했을 때 반환하는 운영 데이터다."""
+    """먹이시간 조회 성공 시 반환하는 운영 데이터다."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -128,20 +101,21 @@ class FeedingScheduleData(BaseModel):
 
 
 class ClosureItem(BaseModel):
-    """휴장 상태 조회 결과 안의 서식지 한 건이다."""
+    """휴장 상태 조회 결과의 시설 한 건이다."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     habitat: str = Field(min_length=1)
     closed: bool
+
+
 class ClosureStatusData(BaseModel):
     """휴장 상태 조회 Tool이 성공했을 때 반환하는 운영 데이터다."""
-    reason: str | None = None
-
-
 
     model_config = ConfigDict(extra="forbid")
 
+    # 기존 공통 계약의 필드 위치를 유지한다.
+    reason: str | None = None
     items: list[ClosureItem] = Field(default_factory=list)
     as_of: datetime
 
@@ -157,8 +131,60 @@ class HabitatRouteData(BaseModel):
     estimated_minutes: int = Field(ge=0)
     as_of: datetime
 
-class RouteInput(BaseModel):
-    model_config = ConfigDict(strict=True, extra="forbid")
 
-    current: str = Field(min_length=1, max_length=100)
-    destination: str = Field(min_length=1, max_length=100)
+class ReservationToolInput(BaseModel):
+    """Agent가 제안한 예약 Tool 인자를 엄격하게 검증한다.
+
+    이 모델은 화면 예약 API 요청용이 아니라, Model Provider가 Agent Runtime에
+    제안한 Tool 인자를 검증한다.
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    program: StrictStr = Field(
+        min_length=1,
+        max_length=100,
+        description="예약할 체험 프로그램 이름",
+    )
+    visit_time: StrictStr = Field(
+        min_length=1,
+        max_length=50,
+        description="시간대를 포함한 예약 희망 시각 문자열",
+    )
+    headcount: StrictInt = Field(
+        ge=1,
+        le=10,
+        description="예약 인원 수. 1명 이상 10명 이하여야 한다.",
+    )
+
+
+class TicketScopeInput(BaseModel):
+    """Agent가 티켓 이용 범위 조회 Tool에 전달하는 입력 계약이다.
+
+    실제 티켓 조회 함수는 최두나 담당이다.
+    이 모델은 함수가 병합되기 전에 Agent 입력 형식을 먼저 고정한다.
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    ticket_type: StrictStr = Field(
+        min_length=1,
+        max_length=100,
+        description="조회할 티켓 종류 이름",
+    )
+
+
+class PublicWeatherInput(BaseModel):
+    """Agent가 날씨 조회 Tool에 전달하는 입력 계약이다.
+
+    실제 날씨 MCP Tool은 이원민 담당이다.
+    이 모델은 MCP Tool이 병합되기 전에 Agent 입력 형식을 먼저 고정한다.
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    region: StrictStr = Field(
+        min_length=1,
+        max_length=100,
+        description="날씨를 조회할 지역 이름",
+    )

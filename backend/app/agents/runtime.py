@@ -1,8 +1,10 @@
 """Provider 판단, Tool 실행, 결과 재전달을 반복하는 Agent Runtime을 구현한다."""
 
+from __future__ import annotations
+
 import asyncio
-import logging
 import json
+import logging
 from dataclasses import dataclass
 from typing import Literal
 from uuid import uuid4
@@ -16,15 +18,16 @@ from backend.app.schemas.agent import (
     ModelToolCall,
 )
 from backend.app.schemas.common import Source, TraceItem
-from backend.app.schemas.tools import ToolCallRecord, ToolError
+from backend.app.schemas.tools import ToolCallRecord, ToolError, ToolRunResult
 from backend.app.tools.executor import ToolExecutor
 from backend.app.tools.policy import detect_forbidden_request
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass(frozen=True)
 class RuntimeSettings:
-    """P0 Runtime의 실행 한도를 담는 테스트 가능 설정이다."""
+    """Runtime의 최대 실행 횟수와 제한 시간을 정의한다."""
 
     max_agent_steps: int = 6
     run_timeout_seconds: float = 90.0
@@ -37,24 +40,31 @@ async def run_agent(
     provider: ModelProvider,
     executor: ToolExecutor,
     settings: RuntimeSettings,
+    reservation_user_id: str | None = None,
+    reservation_session_id: str | None = None,
 ) -> AgentAskResponse:
     """질문 하나를 안전하게 끝까지 실행하고 API 응답으로 반환한다.
 
-    처리 순서:
-        1. 실행 기록과 고유 실행 ID를 만든다.
-        2. 결제·비밀정보·질병 확진 같은 금지 요청을 즉시 차단한다.
-        3. Provider의 판단 → Tool 검증·실행 → 결과 재전달을 반복한다.
-        4. timeout 또는 예기치 못한 오류는 사용자에게 안전한 문장으로 반환한다.
+    예약 Tool은 일반 조회 Tool과 다르게 동작한다.
+    예약 Tool이 성공하면 실제 예약을 즉시 만들지 않고, 사용자 확인이 필요한
+    Pending Action을 만든 뒤 ``confirmation_required`` 상태로 종료한다.
 
-    Note:
-        예외가 발생하면 로그에는 예외 클래스와 안전한 오류 메타데이터만 남긴다.
-        API 키, 사용자 질문, Tool 결과, OpenAI 오류 원문은 로그에 남기지 않는다.
+    Args:
+        request: 사용자가 보낸 질문과 대화 세션 정보다.
+        profile: 허용 Tool과 안전 지침이 담긴 Agent Profile이다.
+        provider: 다음 행동을 제안하는 Mock 또는 OpenAI Provider다.
+        executor: Tool allowlist와 입력 검증을 담당하는 실행기다.
+        settings: 최대 단계 수와 timeout 설정이다.
+        reservation_user_id: 로그인으로 확인된 예약 사용자 ID다.
+        reservation_session_id: 예약 확인에 사용할 로그인 세션 ID다.
     """
     state = AgentState(
         run_id=f"run_{uuid4().hex}",
         agent_id=profile.agent_id,
         session_id=request.session_id or f"session_{uuid4().hex}",
         question=request.message,
+        reservation_user_id=reservation_user_id,
+        reservation_session_id=reservation_session_id,
     )
     state.trace.append(
         TraceItem(owner="runtime", stage="run_started", data={})
@@ -99,7 +109,8 @@ async def run_agent(
         )
     except Exception as error:
         logger.error(
-            "Agent Runtime failed: run_id=%s, error_type=%s, status_code=%s, code=%s, param=%s",
+            "Agent Runtime failed: run_id=%s, error_type=%s, "
+            "status_code=%s, code=%s, param=%s",
             state.run_id,
             type(error).__name__,
             getattr(error, "status_code", None),
@@ -112,7 +123,8 @@ async def run_agent(
             reason="runtime_error",
             answer="요청을 처리하는 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
         )
-    
+
+
 async def _run_loop(
     *,
     request: AgentAskRequest,
@@ -122,11 +134,9 @@ async def _run_loop(
     settings: RuntimeSettings,
     state: AgentState,
 ) -> AgentAskResponse:
-    """Model 호출, Tool 실행, 결과 재전달의 반복 처리를 수행한다."""
+    """Model 호출, Tool 실행, 결과 재전달을 반복 처리한다."""
     tool_schemas = await executor.get_tool_definitions(profile)
     previous_response_id: str | None = None
-
-    # 다음 Provider 호출에는 바로 직전 턴에서 실행한 결과만 전달한다.
     previous_turn_outputs: list[ToolCallRecord] = []
 
     while True:
@@ -207,6 +217,7 @@ async def _run_loop(
 
         previous_turn_outputs = current_turn_outputs
 
+
 async def _execute_call(
     *,
     call: ModelToolCall,
@@ -244,6 +255,51 @@ async def _execute_call(
         return _finish_from_tool_error(state, result.error)
 
     risk = _get_risk(call.name, profile)
+
+    # 예약 Tool 결과에는 내부 사용자 정보가 포함될 수 있으므로,
+    # API 응답과 Tool 기록에는 공개 가능한 항목만 남긴다.
+    if risk == "change":
+        pending_action = result.data.get("pending_action")
+
+        if not isinstance(pending_action, dict):
+            return _finish(
+                state,
+                status="error",
+                reason="invalid_pending_action",
+                answer="예약 확인 정보를 만들지 못했습니다. 다시 시도해 주세요.",
+            )
+
+        public_pending_action = _public_pending_action(pending_action)
+        state.approval = public_pending_action
+
+        record = ToolCallRecord(
+            name=call.name,
+            arguments=arguments,
+            risk=risk,
+            result=ToolRunResult(
+                success=True,
+                data={"pending_action": public_pending_action},
+                error=None,
+                source=result.source,
+                retrieved_at=result.retrieved_at,
+            ),
+        )
+        state.tool_calls.append(record)
+        state.trace.append(
+            TraceItem(
+                owner="runtime",
+                stage="reservation_confirmation_required",
+                data={"tool": call.name},
+            )
+        )
+
+        return _finish(
+            state,
+            status="confirmation_required",
+            reason="reservation_confirmation_required",
+            answer="예약 내용을 확인한 뒤 확인 또는 취소를 선택해 주세요.",
+        )
+
     record = ToolCallRecord(
         name=call.name,
         arguments=arguments,
@@ -286,21 +342,30 @@ def _finish_from_tool_error(
     code = error.code if error is not None else "UNKNOWN_TOOL_ERROR"
 
     if code == "TOOL_NOT_ALLOWED":
-        status: Literal["rejected", "needs_clarification", "stopped", "error"] = "rejected"
+        status: Literal[
+            "rejected",
+            "needs_clarification",
+            "stopped",
+            "error",
+        ] = "rejected"
         reason = "tool_not_allowed"
         answer = "요청한 기능은 사용할 수 없습니다."
     elif code == "INVALID_TOOL_ARGUMENTS":
         status = "needs_clarification"
         reason = "invalid_tool_arguments"
-        answer = "도구 실행에 필요한 정보를 다시 확인해 주세요."
+        answer = "예약 또는 조회에 필요한 정보를 다시 확인해 주세요."
+    elif code == "AUTHENTICATION_REQUIRED":
+        status = "needs_clarification"
+        reason = "authentication_required"
+        answer = "예약하려면 먼저 로그인해 주세요."
     elif code in {"REPEAT_LIMIT_REACHED", "TOOL_CALL_LIMIT_REACHED"}:
         status = "stopped"
         reason = code.lower()
-        answer = "안전한 안내를 위해 도구 호출을 중단했습니다."
+        answer = "안전한 안내를 위해 Tool 호출을 중단했습니다."
     else:
         status = "error"
         reason = "tool_execution_error"
-        answer = "조회 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
+        answer = "기능 실행 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
 
     state.trace.append(
         TraceItem(
@@ -327,12 +392,33 @@ def _get_risk(
     return "forbidden"
 
 
+def _public_pending_action(pending_action: dict[str, object]) -> dict[str, object]:
+    """화면에 공개해도 되는 예약 확인 정보만 골라 반환한다.
+
+    사용자 ID, 예약 실행 인자 전체, 멱등성 키처럼 내부 처리용 값은
+    응답에 포함하지 않는다.
+    """
+    allowed_keys = (
+        "action_id",
+        "tool_name",
+        "summary",
+        "approval_status",
+        "expires_at",
+    )
+    return {
+        key: pending_action[key]
+        for key in allowed_keys
+        if key in pending_action
+    }
+
+
 def _finish(
     state: AgentState,
     *,
     status: Literal[
         "completed",
         "needs_clarification",
+        "confirmation_required",
         "rejected",
         "stopped",
         "error",
@@ -340,7 +426,7 @@ def _finish(
     reason: str,
     answer: str,
 ) -> AgentAskResponse:
-    """내부 State를 API 응답 형태로 변환하고 종료 Trace를 추가한다."""
+    """현재 State를 API 응답 형태로 변환하고 종료 Trace를 추가한다."""
     state.status = status
     state.termination_reason = reason
     state.answer = answer
@@ -363,7 +449,7 @@ def _finish(
         final_answer=answer,
         sources=state.sources,
         tool_calls=state.tool_calls,
-        pending_action=None,
+        pending_action=state.approval,
         trace=state.trace,
     )
 

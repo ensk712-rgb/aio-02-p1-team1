@@ -33,7 +33,7 @@ class AgentAskRequest(BaseModel):
     session_id: str | None = Field(
         default=None,
         min_length=1,
-        description="서버가 이전 요청에서 발급한 세션 ID",
+        description="서버가 이전 요청에서 발급한 대화 세션 ID",
     )
 
 
@@ -64,12 +64,16 @@ class ModelTurn(BaseModel):
     text: str = Field(default="", description="최종 답변 또는 중간 안내 문장")
     clarification: str | None = Field(
         default=None,
-        description="추가 정보가 필요할 때 사용자에게 물을 질문",
+        description="추가 정보가 필요할 때 사용자에게 묻는 질문",
     )
 
 
 class AgentState(BaseModel):
-    """한 번의 Agent 실행 동안 Runtime이 관리하는 내부 상태다."""
+    """한 번의 Agent 실행 동안 Runtime이 관리하는 내부 상태다.
+
+    reservation_user_id와 reservation_session_id는 예약 Tool 실행에만 사용한다.
+    두 값은 외부 API 응답이나 Trace에 포함되지 않아야 한다.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -89,9 +93,14 @@ class AgentState(BaseModel):
     answer: str | None = None
     approval: dict[str, Any] | None = None
 
+    # 아래 두 값은 로그인 성공 후 서버가 내부적으로만 주입한다.
+    # 클라이언트 요청 JSON으로 받지 않으며, 응답으로도 반환하지 않는다.
+    reservation_user_id: str | None = Field(default=None, exclude=True)
+    reservation_session_id: str | None = Field(default=None, exclude=True)
+
 
 class AgentAskResponse(BaseModel):
-    """관람객 화면에 반환하는 P0 Agent 실행 결과다."""
+    """관람객 화면에 반환하는 Agent 실행 결과다."""
 
     model_config = ConfigDict(extra="forbid")
 

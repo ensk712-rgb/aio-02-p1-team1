@@ -1,4 +1,4 @@
-"""P0에서 허용되는 RAG 및 MCP Tool의 정책 정보를 등록한다."""
+"""Provider에 공개할 RAG, MCP, 로컬 Tool의 정책 정보를 등록한다."""
 
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -8,6 +8,7 @@ from backend.app.providers.base import ProviderToolSchema
 
 
 RAG_TOOL_NAME = "retrieve_animal_info"
+RESERVATION_TOOL_NAME = "reserve_experience_program"
 
 RAG_TOOL_SCHEMA: ProviderToolSchema = {
     "name": RAG_TOOL_NAME,
@@ -24,7 +25,7 @@ RAG_TOOL_SCHEMA: ProviderToolSchema = {
             "collection": {
                 "type": "string",
                 "enum": ["animal_cards"],
-                "description": "P0에서 허용하는 동물 정보카드 컬렉션",
+                "description": "허용하는 동물 정보카드 컬렉션",
             },
         },
         "required": ["query", "collection"],
@@ -32,15 +33,48 @@ RAG_TOOL_SCHEMA: ProviderToolSchema = {
     },
 }
 
+RESERVATION_TOOL_SCHEMA: ProviderToolSchema = {
+    "name": RESERVATION_TOOL_NAME,
+    "description": (
+        "체험 프로그램 예약을 제안한다. "
+        "이 Tool은 사용자 확인 전에는 실제 예약을 생성하지 않는다."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "program": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "description": "예약할 체험 프로그램 이름",
+            },
+            "visit_time": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 50,
+                "description": "시간대를 포함한 예약 희망 시각",
+            },
+            "headcount": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "description": "예약 인원 수",
+            },
+        },
+        "required": ["program", "visit_time", "headcount"],
+        "additionalProperties": False,
+    },
+}
+
+LOCAL_TOOL_SCHEMAS: dict[str, ProviderToolSchema] = {
+    RESERVATION_TOOL_NAME: RESERVATION_TOOL_SCHEMA,
+}
+
 
 def _normalize_discovered_tool(
     discovered_tool: Mapping[str, Any],
 ) -> ProviderToolSchema | None:
-    """MCP Client가 발견한 Tool 정보를 Provider용 표준 형태로 검증한다.
-
-    MCP SDK의 객체나 예상하지 못한 형태의 데이터가 Provider에 전달되지 않도록
-    `name`, `description`, `input_schema` 세 필드가 올바른 경우에만 반환한다.
-    """
+    """MCP Client가 발견한 Tool 정보를 Provider용 표준 형태로 검증한다."""
     name = discovered_tool.get("name")
     description = discovered_tool.get("description")
     input_schema = discovered_tool.get("input_schema")
@@ -65,15 +99,10 @@ def get_tool_definitions(
     profile: AgentProfile,
     discovered_tools: Sequence[Mapping[str, Any]],
 ) -> list[ProviderToolSchema]:
-    """Profile 정책과 MCP 발견 목록의 교집합만 Provider에 반환한다.
+    """Profile 정책에 맞는 RAG·MCP·로컬 Tool Schema만 반환한다.
 
-    반환 순서는 항상 일정하다.
-
-    1. Profile이 허용한 RAG 컬렉션이 있으면 로컬 RAG Tool을 먼저 추가한다.
-    2. Profile의 allowed_tools 순서대로 MCP Tool을 추가한다.
-
-    따라서 MCP Server가 예상하지 못한 Tool을 공개해도 Provider는 해당 Tool을
-    선택할 수 없다.
+    RAG는 Backend 내부 검색 기능이고, 예약은 Backend 내부 변경 기능이다.
+    두 Tool은 MCP Server의 발견 목록에 없어도 Profile이 허용하면 Provider에 공개한다.
     """
     definitions: list[ProviderToolSchema] = []
 
@@ -89,6 +118,12 @@ def get_tool_definitions(
             normalized_by_name[normalized_tool["name"]] = normalized_tool
 
     for policy in profile.allowed_tools:
+        local_tool = LOCAL_TOOL_SCHEMAS.get(policy.name)
+
+        if local_tool is not None:
+            definitions.append(local_tool)
+            continue
+
         discovered_tool = normalized_by_name.get(policy.name)
 
         if discovered_tool is not None:

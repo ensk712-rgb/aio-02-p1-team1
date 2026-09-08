@@ -21,7 +21,7 @@ def _run_with_question(monkeypatch, question: str) -> AppTest:
     at.text_input(key="chat_message_input").set_value(question)
     at.button(key="FormSubmitter:chat_panel_form-보내기").click().run()
     return at
-
+  
 
 def test_chat_forwards_logged_in_auth_session(monkeypatch) -> None:
     from frontend.clients.fake_agent_client import FakeAgentClient
