@@ -41,7 +41,6 @@ def test_chat_forwards_logged_in_auth_session(monkeypatch) -> None:
     assert captured == ["auth_fake"]
 
 
-=======
 def test_home_dashboard_renders_design_sections(monkeypatch) -> None:
     monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
     at = AppTest.from_file(str(APP_PATH), default_timeout=10)

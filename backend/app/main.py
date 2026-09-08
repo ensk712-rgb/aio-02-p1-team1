@@ -1,4 +1,4 @@
-"""Zoo Visit Guide FastAPI 애플리케이션 조립 진입점."""
+"""Zoo Visit Guide FastAPI 애플리케이션 조립 진입점이다."""
 
 from __future__ import annotations
 
@@ -11,18 +11,20 @@ from backend.app.providers.mock_provider import ZooMockProvider
 from backend.app.providers.openai_provider import OpenAIProvider
 from backend.app.repositories import session_repository, trace_repository
 from backend.app.repositories.auth_session_repository import AuthSessionRepository
-from backend.app.repositories.reservation_repository import ReservationRepository
 from backend.app.repositories.pending_action_repository import PendingActionRepository
+from backend.app.repositories.reservation_repository import ReservationRepository
 from backend.app.repositories.user_repository import UserRepository
 from backend.app.routers.admin_router import create_admin_router
 from backend.app.routers.agent_router import create_agent_router
 from backend.app.routers.auth_router import create_auth_router
 from backend.app.routers.health_router import create_health_router
 from backend.app.routers.reservation_router import create_reservation_router
-from backend.app.services.agent_orchestration_service import AgentOrchestrationService
-from backend.app.services.rag_service import retrieve_animal_info
-from backend.app.services.approval_service import ApprovalService
 from backend.app.schemas.tools import ToolRunResult
+from backend.app.services.agent_orchestration_service import (
+    AgentOrchestrationService,
+)
+from backend.app.services.approval_service import ApprovalService
+from backend.app.services.rag_service import retrieve_animal_info
 from backend.app.tools.executor import ToolExecutor
 
 
@@ -34,7 +36,14 @@ def create_app(
     reservations: ReservationRepository | None = None,
     pending_actions: PendingActionRepository | None = None,
 ) -> FastAPI:
+    """FastAPI 앱과 모든 의존성을 생성하고 Router를 연결한다.
+
+    예약은 MCP Server에 등록하지 않는다.
+    Agent가 예약 Tool을 선택하면 ToolExecutor가 ApprovalService로 전달하고,
+    ApprovalService는 사용자 확인용 Pending Action만 생성한다.
+    """
     settings = settings or get_settings()
+
     user_repository = user_repository or UserRepository()
     auth_sessions = auth_sessions or AuthSessionRepository(
         ttl_seconds=settings.SESSION_TTL_SECONDS
@@ -43,20 +52,29 @@ def create_app(
     pending_actions = pending_actions or PendingActionRepository(
         ttl_seconds=settings.PENDING_TTL_SECONDS
     )
-    approvals = ApprovalService(pending_actions, reservations)
+
     user_repository.initialize()
+
+    approvals = ApprovalService(
+        pending_actions,
+        reservations,
+    )
+
     mcp_client = McpClient(
         settings.MCP_SERVER_URL,
         timeout_seconds=settings.MCP_TIMEOUT_SECONDS,
     )
+
     executor = ToolExecutor(
         rag_search=_retrieve_animal_info_for_executor,
         mcp_client=mcp_client,
+        reservation_proposer=approvals.propose_reservation,
         max_same_tool_calls=settings.MAX_SAME_TOOL_CALLS,
         max_tool_calls=settings.MAX_TOOL_CALLS,
         mcp_timeout_seconds=settings.MCP_TIMEOUT_SECONDS,
         mcp_retry_count=settings.MCP_RETRY_COUNT,
     )
+
     provider = (
         ZooMockProvider()
         if settings.APP_MODE == "mock"
@@ -66,6 +84,7 @@ def create_app(
             timeout_seconds=min(30.0, settings.RUN_TIMEOUT_SECONDS),
         )
     )
+
     service = AgentOrchestrationService(
         session_repository=session_repository,
         trace_repository=trace_repository,
@@ -75,13 +94,27 @@ def create_app(
             max_agent_steps=settings.MAX_AGENT_STEPS,
             run_timeout_seconds=settings.RUN_TIMEOUT_SECONDS,
         ),
+        auth_sessions=auth_sessions,
     )
 
-    application = FastAPI(title="Zoo Visit Guide API", version="0.3.0")
-    application.include_router(create_auth_router(user_repository, auth_sessions))
+    application = FastAPI(
+        title="Zoo Visit Guide API",
+        version="0.3.0",
+    )
+
+    application.include_router(
+        create_auth_router(
+            user_repository,
+            auth_sessions,
+        )
+    )
     application.include_router(create_agent_router(service))
     application.include_router(
-        create_reservation_router(reservations, auth_sessions, approvals)
+        create_reservation_router(
+            reservations,
+            auth_sessions,
+            approvals,
+        )
     )
     application.include_router(
         create_health_router(
@@ -97,11 +130,15 @@ def create_app(
             auth_sessions=auth_sessions,
         )
     )
+
     return application
 
 
-def _retrieve_animal_info_for_executor(query: str, collection: str) -> ToolRunResult:
-    """중복된 기존 Schema 경계를 Executor 표준 ToolRunResult로 정규화한다."""
+def _retrieve_animal_info_for_executor(
+    query: str,
+    collection: str,
+) -> ToolRunResult:
+    """기존 RAG 결과를 Executor가 사용하는 ToolRunResult로 변환한다."""
     result = retrieve_animal_info(query, collection)
     return ToolRunResult.model_validate(result.model_dump())
 
