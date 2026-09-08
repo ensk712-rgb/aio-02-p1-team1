@@ -1,7 +1,11 @@
 """Tool Registry가 허용된 Tool만 Provider에 전달하는지 검증한다."""
 
 from backend.app.agents.registry import get_agent_profile
-from backend.app.tools.registry import RAG_TOOL_NAME, get_tool_definitions
+from backend.app.tools.registry import (
+    RAG_TOOL_NAME,
+    RESERVATION_TOOL_NAME,
+    get_tool_definitions,
+)
 
 
 DISCOVERED_TOOLS = [
@@ -48,8 +52,8 @@ DISCOVERED_TOOLS = [
 ]
 
 
-def test_registry_returns_rag_and_allowed_mcp_tools() -> None:
-    """RAG Tool과 Profile에서 허용된 세 MCP Tool만 반환해야 한다."""
+def test_registry_returns_rag_mcp_and_local_reservation_tools() -> None:
+    """RAG, 허용된 MCP 조회 Tool, 로컬 예약 Tool만 반환해야 한다."""
     profile = get_agent_profile("zoo_guide")
 
     tools = get_tool_definitions(profile, DISCOVERED_TOOLS)
@@ -59,7 +63,25 @@ def test_registry_returns_rag_and_allowed_mcp_tools() -> None:
         "get_feeding_schedule",
         "check_closure_status",
         "find_habitat_route",
+        RESERVATION_TOOL_NAME,
     ]
+
+
+def test_registry_exposes_reservation_schema_without_mcp_discovery() -> None:
+    """예약 Tool은 MCP가 아닌 Backend 로컬 기능으로 Provider에 공개해야 한다."""
+    profile = get_agent_profile("zoo_guide")
+
+    tools = get_tool_definitions(profile, DISCOVERED_TOOLS)
+    reservation_tool = next(
+        tool for tool in tools if tool["name"] == RESERVATION_TOOL_NAME
+    )
+
+    assert reservation_tool["input_schema"]["required"] == [
+        "program",
+        "visit_time",
+        "headcount",
+    ]
+    assert reservation_tool["input_schema"]["additionalProperties"] is False
 
 
 def test_registry_does_not_expose_unallowed_discovered_tool() -> None:
@@ -84,7 +106,10 @@ def test_registry_skips_malformed_discovered_tool() -> None:
 
     tools = get_tool_definitions(profile, malformed_tools)
 
-    assert [tool["name"] for tool in tools] == [RAG_TOOL_NAME]
+    assert [tool["name"] for tool in tools] == [
+        RAG_TOOL_NAME,
+        RESERVATION_TOOL_NAME,
+    ]
 
 
 def test_registry_keeps_profile_tool_order() -> None:
@@ -99,4 +124,5 @@ def test_registry_keeps_profile_tool_order() -> None:
         "get_feeding_schedule",
         "check_closure_status",
         "find_habitat_route",
+        RESERVATION_TOOL_NAME,
     ]

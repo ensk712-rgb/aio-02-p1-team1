@@ -1,0 +1,6 @@
+streamlit>=1.63,<2
+httpx>=0.27,<1
+pandas>=2.2,<3
+altair>=5.5,<7
+python-dotenv
+pydantic-settings

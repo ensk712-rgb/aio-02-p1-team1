@@ -79,7 +79,22 @@ def test_main_connects_n01_to_n04_through_real_mcp() -> None:
                     "answer": body["final_answer"],
                     "trace": body["trace"],
                 }
+                assert body["tool_calls"][0]["name"] == expected_tool
+                assert body["tool_calls"][0]["result"]["success"] is True
+                if expected_tool == "retrieve_animal_info":
+                    assert body["sources"]
                 session_id = body["session_id"]
+
+            trace = client.get(
+                f"/api/admin/trace?session_id={session_id}",
+                headers={"Authorization": "Bearer integration-admin"},
+            )
+            assert trace.status_code == 200
+            assert len(trace.json()["runs"]) == 4
     finally:
         process.terminate()
-        process.wait(timeout=5)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
