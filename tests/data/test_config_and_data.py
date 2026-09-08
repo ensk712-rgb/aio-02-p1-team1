@@ -126,3 +126,13 @@ def test_feeding_json_covers_all_habitats():
     habitats = {s["habitat"] for s in payload["schedules"]}
 
     assert habitats == {"정문", "호랑이관", "해양관", "코끼리관", "기린관"} - {"정문"}
+
+
+def test_storage_and_persistence_defaults() -> None:
+    settings = Settings(_env_file=None)
+    assert settings.STORAGE_MODE == "memory"
+    assert settings.DATABASE_URL == ""
+    assert settings.REDIS_URL == ""
+    assert settings.SESSION_MEMORY_MAX_TURNS == 6
+    assert settings.EMBEDDING_MODEL == "text-embedding-3-small"
+    assert settings.EMBEDDING_RETRY_COUNT == 1

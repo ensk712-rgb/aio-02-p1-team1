@@ -39,6 +39,11 @@ def create_zoo_guide_profile() -> AgentProfile:
                 risk="read",
                 description="현재 위치에서 목적지까지의 관람 경로를 조회한다.",
             ),
+            AgentToolPolicy(
+                name="lookup_ticket_scope",
+                risk="read",
+                description="티켓 종류별로 관람 가능한 전시관과 제외 항목을 조회한다.",
+            ),
         ),
         allowed_rag_collections=("animal_cards",),
     )

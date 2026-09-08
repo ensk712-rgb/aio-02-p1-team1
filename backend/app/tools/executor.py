@@ -15,6 +15,7 @@ from backend.app.schemas.tools import (
     ClosureStatusInput,
     FeedingScheduleInput,
     HabitatRouteInput,
+    TicketScopeInput,
     ToolError,
     ToolRunResult,
 )
@@ -135,6 +136,7 @@ class ToolExecutor:
                 "get_feeding_schedule": FeedingScheduleInput,
                 "check_closure_status": ClosureStatusInput,
                 "find_habitat_route": HabitatRouteInput,
+                "lookup_ticket_scope": TicketScopeInput,
             }
             input_model = input_models.get(name)
 

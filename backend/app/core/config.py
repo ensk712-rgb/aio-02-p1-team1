@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # 실행 모드
     APP_MODE: Literal["mock", "openai"] = "mock"
-    STORAGE_MODE: Literal["memory"] = "memory"
+    STORAGE_MODE: Literal["memory", "persistent"] = "memory"
 
     # OpenAI Provider
     OPENAI_MODEL: str = "gpt-4.1-mini"
@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     # RAG 설정
     RAG_TOP_K: int = 3
     RAG_MIN_SCORE: float = 0.5
+
+    # P1: pgvector/Redis 전환 (STORAGE_MODE=persistent일 때만 사용)
+    DATABASE_URL: str = ""
+    REDIS_URL: str = ""
+    SESSION_MEMORY_MAX_TURNS: int = 6
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_RETRY_COUNT: int = 1
 
     # Runtime 실행 한도
     MAX_AGENT_STEPS: int = 6

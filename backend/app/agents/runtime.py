@@ -27,6 +27,22 @@ class RuntimeSettings:
     run_timeout_seconds: float = 90.0
 
 
+def _build_instructions(
+    base_instructions: str,
+    conversation_history: list[dict] | None,
+) -> str:
+    """최근 대화 기록을 별도 LLM 요약 없이 텍스트로 이어붙인다."""
+    if not conversation_history:
+        return base_instructions
+
+    lines = ["", "최근 대화:"]
+    for message in conversation_history:
+        speaker = "사용자" if message["role"] == "user" else "에이전트"
+        lines.append(f"{speaker}: {message['text']}")
+
+    return base_instructions + "\n".join(lines)
+
+
 async def run_agent(
     request: AgentAskRequest,
     profile: AgentProfile,
@@ -34,6 +50,7 @@ async def run_agent(
     provider: ModelProvider,
     executor: ToolExecutor,
     settings: RuntimeSettings,
+    conversation_history: list[dict] | None = None,
 ) -> AgentAskResponse:
     """Provider와 Executor를 연결해 Agent 질문 하나를 끝까지 처리한다."""
     state = AgentState(
@@ -72,6 +89,7 @@ async def run_agent(
                 executor=executor,
                 settings=settings,
                 state=state,
+                conversation_history=conversation_history,
             ),
             timeout=settings.run_timeout_seconds,
         )
@@ -98,10 +116,12 @@ async def _run_loop(
     executor: ToolExecutor,
     settings: RuntimeSettings,
     state: AgentState,
+    conversation_history: list[dict] | None = None,
 ) -> AgentAskResponse:
     """Model 호출, Tool 실행, 결과 재전달의 반복 처리를 수행한다."""
     tool_schemas = await executor.get_tool_definitions(profile)
     previous_response_id: str | None = None
+    instructions = _build_instructions(profile.instructions, conversation_history)
 
     # 다음 Provider 호출에는 바로 직전 턴에서 실행한 결과만 전달한다.
     previous_turn_outputs: list[ToolCallRecord] = []
@@ -117,7 +137,7 @@ async def _run_loop(
 
         turn = await provider.next_turn(
             question=request.message,
-            instructions=profile.instructions,
+            instructions=instructions,
             tools=tool_schemas,
             previous_response_id=previous_response_id,
             tool_outputs=previous_turn_outputs,

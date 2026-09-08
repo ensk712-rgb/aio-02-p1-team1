@@ -162,3 +162,24 @@ class RouteInput(BaseModel):
 
     current: str = Field(min_length=1, max_length=100)
     destination: str = Field(min_length=1, max_length=100)
+
+
+class ChunkInput(BaseModel):
+    """document_repository.insert_chunks에 전달하는 청크 한 건이다."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    doc_id: str = Field(min_length=1)
+    collection: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    page: int | None = Field(default=None, ge=1)
+    text: str = Field(min_length=1)
+    keywords: list[str] = Field(default_factory=list)
+
+
+class TicketScopeInput(BaseModel):
+    """티켓 범위 조회 Tool이 허용하는 엄격한 입력 형식이다."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    ticket_type: StrictStr = Field(min_length=1, max_length=50)
