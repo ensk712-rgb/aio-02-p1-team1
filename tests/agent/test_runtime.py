@@ -194,3 +194,48 @@ def test_runtime_stops_before_third_same_tool_call() -> None:
     assert response.status == "stopped"
     assert response.termination_reason == "repeat_limit_reached"
     assert len(mcp_client.calls) == 2
+
+
+def test_conversation_history_is_appended_to_instructions() -> None:
+    """이전 대화가 있으면 Provider에 전달되는 instructions에 포함되어야 한다."""
+    provider = ScriptedMockProvider(
+        [ModelTurn(response_id="response_1", text="이어서 답변합니다.")]
+    )
+
+    asyncio.run(
+        run_agent(
+            AgentAskRequest(message="그럼 먹이는 언제야?", session_id="session_1"),
+            get_agent_profile("zoo_guide"),
+            provider=provider,
+            executor=create_executor(FakeMcpClient()),
+            settings=RuntimeSettings(),
+            conversation_history=[
+                {"role": "user", "text": "호랑이는 어디 살아?"},
+                {"role": "agent", "text": "맹수관에서 서식합니다."},
+            ],
+        )
+    )
+
+    sent_instructions = provider.call_history[0].instructions
+    assert "호랑이는 어디 살아?" in sent_instructions
+    assert "맹수관에서 서식합니다." in sent_instructions
+
+
+def test_no_conversation_history_leaves_instructions_unchanged() -> None:
+    """history가 없으면 instructions는 Profile 원본과 같아야 한다."""
+    provider = ScriptedMockProvider(
+        [ModelTurn(response_id="response_1", text="답변")]
+    )
+    profile = get_agent_profile("zoo_guide")
+
+    asyncio.run(
+        run_agent(
+            AgentAskRequest(message="질문", session_id="session_1"),
+            profile,
+            provider=provider,
+            executor=create_executor(FakeMcpClient()),
+            settings=RuntimeSettings(),
+        )
+    )
+
+    assert provider.call_history[0].instructions == profile.instructions

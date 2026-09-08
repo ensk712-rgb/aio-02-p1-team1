@@ -1,15 +1,26 @@
-"""Zoo Visit Guide FastAPI 애플리케이션 조립 진입점이다."""
+"""Zoo Visit Guide FastAPI 애플리케이션 조립 진입점.
+
+예약은 MCP Server에 등록하지 않는다.
+Agent가 예약 Tool을 선택하면 ToolExecutor가 ApprovalService로 전달하고,
+ApprovalService는 사용자 확인용 Pending Action만 생성한다.
+"""
 
 from __future__ import annotations
 
 from fastapi import FastAPI
 
 from backend.app.agents.runtime import RuntimeSettings
+from backend.app.core import db as db_module
+from backend.app.core import redis_client as redis_client_module
 from backend.app.core.config import Settings, get_settings
 from backend.app.mcp_client.client import McpClient
 from backend.app.providers.mock_provider import ZooMockProvider
 from backend.app.providers.openai_provider import OpenAIProvider
-from backend.app.repositories import session_repository, trace_repository
+from backend.app.repositories import (
+    session_memory_repository,
+    session_repository,
+    trace_repository,
+)
 from backend.app.repositories.auth_session_repository import AuthSessionRepository
 from backend.app.repositories.pending_action_repository import PendingActionRepository
 from backend.app.repositories.reservation_repository import ReservationRepository
@@ -19,13 +30,39 @@ from backend.app.routers.agent_router import create_agent_router
 from backend.app.routers.auth_router import create_auth_router
 from backend.app.routers.health_router import create_health_router
 from backend.app.routers.reservation_router import create_reservation_router
-from backend.app.schemas.tools import ToolRunResult
-from backend.app.services.agent_orchestration_service import (
-    AgentOrchestrationService,
-)
+from backend.app.schemas.tools import ToolRunResult as ExecutorToolRunResult
+from backend.app.services.agent_orchestration_service import AgentOrchestrationService
 from backend.app.services.approval_service import ApprovalService
 from backend.app.services.rag_service import retrieve_animal_info
 from backend.app.tools.executor import ToolExecutor
+
+
+class _PersistenceHealth:
+    """core/db.py, core/redis_client.py의 함수를 health_router 계약으로 묶는다.
+
+    create_app()에 전달된 settings를 명시적으로 넘겨야 한다 — 전역 캐시된
+    get_settings()에만 의존하면 테스트 등에서 다른 Settings를 주입해도
+    무시되고 원래 프로세스의 DATABASE_URL/REDIS_URL을 보게 된다.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+
+    def check_postgres(self) -> bool:
+        try:
+            pool = db_module.get_connection_pool(dsn=self._settings.DATABASE_URL)
+            with pool.connection() as conn:
+                conn.execute("SELECT 1")
+            return True
+        except Exception:
+            return False
+
+    def check_redis(self) -> bool:
+        try:
+            client = redis_client_module.get_redis_client(url=self._settings.REDIS_URL)
+            return client.ping() is True
+        except Exception:
+            return False
 
 
 def create_app(
@@ -88,6 +125,7 @@ def create_app(
     service = AgentOrchestrationService(
         session_repository=session_repository,
         trace_repository=trace_repository,
+        session_memory_repository=session_memory_repository,
         provider=provider,
         executor=executor,
         settings=RuntimeSettings(
@@ -121,6 +159,11 @@ def create_app(
             mcp_client,
             app_mode=settings.APP_MODE,
             storage=settings.STORAGE_MODE,
+            persistence_check=(
+                _PersistenceHealth(settings)
+                if settings.STORAGE_MODE == "persistent"
+                else None
+            ),
         )
     )
     application.include_router(
@@ -137,10 +180,10 @@ def create_app(
 def _retrieve_animal_info_for_executor(
     query: str,
     collection: str,
-) -> ToolRunResult:
-    """기존 RAG 결과를 Executor가 사용하는 ToolRunResult로 변환한다."""
+) -> ExecutorToolRunResult:
+    """rag_service의 ToolRunResult(schemas.common)를 Executor 계약(schemas.tools)으로 정규화한다."""
     result = retrieve_animal_info(query, collection)
-    return ToolRunResult.model_validate(result.model_dump())
+    return ExecutorToolRunResult.model_validate(result.model_dump())
 
 
 app = create_app()

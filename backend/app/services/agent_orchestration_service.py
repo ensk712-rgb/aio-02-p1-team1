@@ -35,6 +35,16 @@ class TraceRepositoryProtocol(Protocol):
         """실행 결과와 Trace를 저장한다."""
 
 
+class SessionMemoryRepositoryProtocol(Protocol):
+    """Service가 세션 대화 기억 저장소에 요구하는 최소 기능이다."""
+
+    def get_recent(self, session_id: str) -> list[dict]:
+        """세션의 최근 대화 기록을 오래된 것부터 반환한다."""
+
+    def append_message(self, session_id: str, role: str, text: str) -> None:
+        """세션 대화 기록에 메시지 한 건을 추가한다."""
+
+
 class AuthSessionRepositoryProtocol(Protocol):
     """로그인 세션 저장소가 제공해야 하는 최소 기능이다."""
 
@@ -54,6 +64,7 @@ class AgentOrchestrationService:
         *,
         session_repository: SessionRepositoryProtocol,
         trace_repository: TraceRepositoryProtocol,
+        session_memory_repository: SessionMemoryRepositoryProtocol,
         provider: ModelProvider,
         executor: ToolExecutor,
         settings: RuntimeSettings,
@@ -62,6 +73,7 @@ class AgentOrchestrationService:
         """Runtime과 저장소 의존성을 생성자에서 주입한다."""
         self._session_repository = session_repository
         self._trace_repository = trace_repository
+        self._session_memory_repository = session_memory_repository
         self._provider = provider
         self._executor = executor
         self._settings = settings
@@ -82,6 +94,7 @@ class AgentOrchestrationService:
             update={"session_id": session_id}
         )
         profile = self._get_profile()
+        history = self._session_memory_repository.get_recent(session_id)
 
         reservation_user_id = self._resolve_reservation_user_id(
             auth_session_id
@@ -93,6 +106,7 @@ class AgentOrchestrationService:
             provider=self._provider,
             executor=self._executor,
             settings=self._settings,
+            conversation_history=history,
             reservation_user_id=reservation_user_id,
             reservation_session_id=(
                 auth_session_id if reservation_user_id is not None else None
@@ -104,6 +118,12 @@ class AgentOrchestrationService:
             run_id=response.run_id,
             status=response.status,
             trace=[item.model_dump(mode="json") for item in response.trace],
+        )
+        self._session_memory_repository.append_message(
+            session_id, "user", request.message
+        )
+        self._session_memory_repository.append_message(
+            session_id, "agent", response.final_answer
         )
 
         return response

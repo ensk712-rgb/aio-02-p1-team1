@@ -15,6 +15,7 @@ class ProviderCall:
     """Provider가 받은 한 번의 판단 요청 기록이다."""
 
     question: str
+    instructions: str
     previous_response_id: str | None
     tool_names: tuple[str, ...]
     tool_result_names: tuple[str, ...]
@@ -52,8 +53,6 @@ class ScriptedMockProvider:
         tool_outputs: Sequence[ToolCallRecord],
     ) -> ModelTurn:
         """다음에 준비된 ModelTurn을 반환하고 호출 정보를 기록한다."""
-        del instructions
-
         if self._next_turn_index >= len(self._turns):
             raise RuntimeError(
                 "ScriptedMockProvider의 응답이 모두 소진되었습니다. "
@@ -63,6 +62,7 @@ class ScriptedMockProvider:
         self._call_history.append(
             ProviderCall(
                 question=question,
+                instructions=instructions,
                 previous_response_id=previous_response_id,
                 tool_names=tuple(schema["name"] for schema in tools),
                 tool_result_names=tuple(record.name for record in tool_outputs),

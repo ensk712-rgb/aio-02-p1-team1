@@ -13,8 +13,9 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from backend.app.core.config import DATA_DIR
+from backend.app.core.config import DATA_DIR, try_get_settings
 from backend.app.schemas.common import RetrievedChunk
+from backend.app.schemas.tools import ChunkInput
 
 # 길이가 긴 것부터 먼저 검사해야 부분 중복(예: "에서"가 "가"보다 먼저)을 피한다.
 _PARTICLE_SUFFIXES = sorted(
@@ -76,8 +77,8 @@ def _score(tokens: list[str], card: dict) -> float:
     return round(matched / len(tokens), 4)
 
 
-def search(query: str, collection: str, top_k: int) -> list[RetrievedChunk]:
-    """query와 각 카드의 겹침 비율로 점수를 매겨 상위 top_k Chunk를 반환한다."""
+def _search_memory(query: str, collection: str, top_k: int) -> list[RetrievedChunk]:
+    """기존 키워드 매칭 검색 (STORAGE_MODE=memory)."""
     tokens = _tokenize(query)
     scored: list[tuple[float, dict]] = []
     for card in load_cards():
@@ -99,3 +100,86 @@ def search(query: str, collection: str, top_k: int) -> list[RetrievedChunk]:
         )
         for score, card in scored[:top_k]
     ]
+
+
+def _search_persistent(query: str, collection: str, top_k: int) -> list[RetrievedChunk]:
+    """pgvector 코사인 유사도 검색 (STORAGE_MODE=persistent)."""
+    import asyncio
+
+    from backend.app.core.db import get_connection_pool
+    from backend.app.services.embedding_service import embed_text
+
+    query_embedding = asyncio.run(embed_text(query))
+    pool = get_connection_pool()
+
+    with pool.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT doc_id, title, page, text, collection,
+                   (embedding <=> %s::vector) AS distance
+            FROM document_chunks
+            WHERE collection = %s
+            ORDER BY embedding <=> %s::vector, doc_id ASC
+            LIMIT %s
+            """,
+            (query_embedding, collection, query_embedding, top_k),
+        ).fetchall()
+
+    return [
+        RetrievedChunk(
+            doc_id=row[0],
+            title=row[1],
+            page=row[2],
+            text=row[3],
+            collection=row[4],
+            score=round(max(0.0, 1.0 - float(row[5])), 4),
+        )
+        for row in rows
+    ]
+
+
+def search(query: str, collection: str, top_k: int) -> list[RetrievedChunk]:
+    """STORAGE_MODE에 따라 키워드 검색 또는 pgvector 검색으로 분기한다."""
+    settings = try_get_settings()
+    if settings is not None and settings.STORAGE_MODE == "persistent":
+        return _search_persistent(query, collection, top_k)
+    return _search_memory(query, collection, top_k)
+
+
+def insert_chunks(chunks: list[ChunkInput]) -> None:
+    """청크 목록을 임베딩해 pgvector 테이블에 upsert한다 (STORAGE_MODE=persistent 전용).
+
+    PDF 업로드(서브프로젝트 2)와 시딩 스크립트가 이 함수를 사용한다.
+    """
+    import asyncio
+
+    from backend.app.core.db import get_connection_pool
+    from backend.app.services.embedding_service import embed_text
+
+    pool = get_connection_pool()
+    with pool.connection() as conn:
+        for chunk in chunks:
+            embedding = asyncio.run(embed_text(chunk.text))
+            conn.execute(
+                """
+                INSERT INTO document_chunks
+                    (doc_id, collection, title, page, text, keywords, embedding)
+                VALUES (%s, %s, %s, %s, %s, %s, %s::vector)
+                ON CONFLICT (doc_id, collection) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    page = EXCLUDED.page,
+                    text = EXCLUDED.text,
+                    keywords = EXCLUDED.keywords,
+                    embedding = EXCLUDED.embedding
+                """,
+                (
+                    chunk.doc_id,
+                    chunk.collection,
+                    chunk.title,
+                    chunk.page,
+                    chunk.text,
+                    chunk.keywords,
+                    embedding,
+                ),
+            )
+        conn.commit()

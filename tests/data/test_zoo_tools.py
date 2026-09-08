@@ -146,3 +146,53 @@ def test_route_rejects_non_string_argument_strict_validation():
 
     assert result.success is False
     assert result.error.code == "INVALID_ARGUMENT"
+
+
+# ---- lookup_ticket_scope (P1, 작업지시서 v1.1 11.4절) ----
+
+def test_ticket_scope_known_type_returns_included_and_excluded():
+    result = zoo_tools.lookup_ticket_scope("일반권", now=NOON)
+
+    assert result.success is True
+    assert result.data["ticket_type"] == "일반권"
+    assert result.data["included"] == ["호랑이관", "해양관", "코끼리관", "기린관"]
+    assert result.data["excluded"] == ["체험 프로그램"]
+    # 시간 기준 데이터가 아니므로 as_of는 계약에 포함하지 않는다.
+    assert "as_of" not in result.data
+
+
+def test_ticket_scope_alias_normalization():
+    result = zoo_tools.lookup_ticket_scope("성인", now=NOON)
+
+    assert result.success is True
+    assert result.data["ticket_type"] == "일반권"
+
+
+def test_ticket_scope_experience_program_excludes_exhibits():
+    result = zoo_tools.lookup_ticket_scope("체험권", now=NOON)
+
+    assert result.success is True
+    assert result.data["ticket_type"] == "체험프로그램권"
+    assert result.data["included"] == ["체험 프로그램"]
+    assert "호랑이관" in result.data["excluded"]
+
+
+def test_ticket_scope_unknown_type_is_error():
+    result = zoo_tools.lookup_ticket_scope("무제한권", now=NOON)
+
+    assert result.success is False
+    assert result.error.code == "TICKET_TYPE_NOT_FOUND"
+
+
+def test_ticket_scope_rejects_empty_string():
+    result = zoo_tools.lookup_ticket_scope("", now=NOON)
+
+    assert result.success is False
+    assert result.error.code == "INVALID_ARGUMENT"
+
+
+def test_ticket_scope_rejects_non_string_argument_strict_validation():
+    result = zoo_tools.lookup_ticket_scope(123, now=NOON)  # type: ignore[arg-type]
+
+    assert result.success is False
+    assert result.error.code == "INVALID_ARGUMENT"

@@ -5,8 +5,8 @@ import pytest
 from backend.app.agents.registry import get_agent_profile, list_agent_profiles
 
 
-def test_zoo_guide_profile_has_allowed_tools() -> None:
-    """zoo_guide는 조회 Tool과 P1 예약 Tool을 허용해야 한다."""
+def test_zoo_guide_profile_has_p0_tools_and_ticket_scope() -> None:
+    """zoo_guide는 P0의 세 운영 조회 Tool과 P1 lookup_ticket_scope, 예약 Tool을 허용해야 한다."""
     profile = get_agent_profile("zoo_guide")
 
     tool_policies = {tool.name: tool for tool in profile.allowed_tools}
@@ -16,6 +16,7 @@ def test_zoo_guide_profile_has_allowed_tools() -> None:
         "get_feeding_schedule",
         "check_closure_status",
         "find_habitat_route",
+        "lookup_ticket_scope",
         "reserve_experience_program",
     }
     assert tool_policies["reserve_experience_program"].risk == "change"
