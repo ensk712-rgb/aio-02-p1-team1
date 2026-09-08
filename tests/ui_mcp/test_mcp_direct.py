@@ -72,6 +72,7 @@ def test_list_tools_exposes_fixed_names_and_schemas(mcp_process) -> None:
         "get_feeding_schedule",
         "check_closure_status",
         "find_habitat_route",
+        "lookup_public_weather",
         "lookup_ticket_scope",
         "get_course_info",
     }
@@ -81,6 +82,7 @@ def test_list_tools_exposes_fixed_names_and_schemas(mcp_process) -> None:
         "current",
         "destination",
     ]
+    assert by_name["lookup_public_weather"]["input_schema"]["required"] == ["region"]
 
 
 def test_call_three_tools_returns_common_result_contract(mcp_process) -> None:
@@ -88,6 +90,7 @@ def test_call_three_tools_returns_common_result_contract(mcp_process) -> None:
         ("get_feeding_schedule", {"habitat": "해양관"}),
         ("check_closure_status", {"habitat": "해양관"}),
         ("find_habitat_route", {"current": "정문", "destination": "해양관"}),
+        ("lookup_public_weather", {"region": "서울"}),
     )
 
     async def call_and_assert() -> None:
@@ -97,7 +100,29 @@ def test_call_three_tools_returns_common_result_contract(mcp_process) -> None:
             assert result.success is True, name
             assert result.data, name
             assert result.error is None, name
-            assert result.source == "mock_zoo_operations", name
+            expected_source = (
+                "mock_public_weather"
+                if name == "lookup_public_weather"
+                else "mock_zoo_operations"
+            )
+            assert result.source == expected_source, name
             assert result.retrieved_at.utcoffset() is not None, name
+
+    asyncio.run(call_and_assert())
+
+
+def test_public_weather_returns_fixed_contract(mcp_process) -> None:
+    async def call_and_assert() -> None:
+        result = await McpClient(TEST_URL).call_tool(
+            "lookup_public_weather",
+            {"region": "서울"},
+        )
+
+        assert result.success is True
+        assert set(result.data) == {"region", "condition", "as_of"}
+        assert result.data["region"] == "서울"
+        assert result.data["condition"] == "맑음"
+        assert result.source == "mock_public_weather"
+        assert result.retrieved_at.utcoffset() is not None
 
     asyncio.run(call_and_assert())

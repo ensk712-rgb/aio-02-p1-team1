@@ -103,7 +103,6 @@ class HabitatRouteData(BaseModel):
     estimated_minutes: int = Field(ge=0)
     as_of: datetime
 
-
 class ChunkInput(BaseModel):
     """document_repository.insert_chunks에 전달하는 청크 한 건이다."""
 
@@ -115,7 +114,6 @@ class ChunkInput(BaseModel):
     page: int | None = Field(default=None, ge=1)
     text: str = Field(min_length=1)
     keywords: list[str] = Field(default_factory=list)
-
 
 class ReservationToolInput(BaseModel):
     """Agent가 제안한 예약 Tool 인자를 엄격하게 검증한다.

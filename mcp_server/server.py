@@ -5,7 +5,7 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from backend.app.core.config import get_settings
-from mcp_server.tools.public_data import lookup_ticket_scope
+from mcp_server.tools.public_data import lookup_public_weather, lookup_ticket_scope
 from mcp_server.tools.zoo_read import (
     check_closure_status,
     find_habitat_route,
@@ -27,6 +27,7 @@ def create_mcp_server(*, host: str | None = None, port: int | None = None) -> Fa
     server.tool()(get_feeding_schedule)
     server.tool()(check_closure_status)
     server.tool()(find_habitat_route)
+    server.tool()(lookup_public_weather)
     server.tool()(get_course_info)
     server.tool()(lookup_ticket_scope)
     return server

@@ -20,8 +20,10 @@ from backend.app.schemas.agent import AgentState
 from backend.app.schemas.rag import RagInput
 from backend.app.schemas.tools import (
     ClosureStatusInput,
+    CourseInfoInput,
     FeedingScheduleInput,
     HabitatRouteInput,
+    PublicWeatherInput,
     ReservationToolInput,
     TicketScopeInput,
     ToolError,
@@ -270,6 +272,8 @@ class ToolExecutor:
                 "get_feeding_schedule": FeedingScheduleInput,
                 "check_closure_status": ClosureStatusInput,
                 "find_habitat_route": HabitatRouteInput,
+                "get_course_info": CourseInfoInput,
+                "lookup_public_weather": PublicWeatherInput,
                 "lookup_ticket_scope": TicketScopeInput,
                 RESERVATION_TOOL_NAME: ReservationToolInput,
             }
