@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 
@@ -22,21 +23,28 @@ class FakeAgentClient:
         self._pending_action: dict[str, Any] | None = None
 
     def login(self, user_id: str, password: str) -> dict[str, Any]:
-        if user_id != "TEST" or password != "1234":
+        identities = {"TEST": "user", "admin": "admin"}
+        if user_id not in identities or password != "1234":
             from frontend.clients.agent_client import AgentClientError
             raise AgentClientError("아이디 또는 비밀번호가 올바르지 않습니다.", kind="http")
-        return {"success": True, "user_id": "TEST", "auth_session_id": "auth_fake"}
+        return {
+            "success": True,
+            "user_id": user_id,
+            "role": identities[user_id],
+            "auth_session_id": f"auth_fake_{identities[user_id]}",
+        }
 
     def logout(self, auth_session_id: str) -> None:
         return None
 
     def create_reservation(self, auth_session_id: str, **payload: Any) -> dict[str, Any]:
+        created_at = datetime.now(timezone.utc)
         item = {
             "action_id": f"action_fake_{len(self._reservations) + 1:03d}",
             "user_id": "TEST",
             "approval_status": "pending",
-            "created_at": "2026-09-07T12:00:00+00:00",
-            "expires_at": "2099-09-07T12:02:00+00:00",
+            "created_at": created_at.isoformat(),
+            "expires_at": (created_at + timedelta(seconds=120)).isoformat(),
             "tool_name": "reserve_experience_program",
             "summary": f"{payload['visit_time']} {payload['program']} · {payload['headcount']}명",
             "arguments": {"user_id": "TEST", **payload},
@@ -81,6 +89,20 @@ class FakeAgentClient:
     def get_pending_reservations(self, auth_session_id: str) -> dict[str, Any]:
         return {"items": [dict(item) for item in self._reservations if item["status"] == "pending"]}
 
+    def get_admin_trace(self, auth_session_id: str, session_id: str) -> dict[str, Any]:
+        return {
+            "runs": [
+                {
+                    "run_id": "run_fake_001",
+                    "status": "completed",
+                    "trace": [
+                        {"event": "request_received", "session_id": session_id},
+                        {"event": "tool_completed", "tool_name": "get_feeding_schedule"},
+                    ],
+                }
+            ] if session_id else []
+        }
+
     def decide_reservation(self, auth_session_id: str, action_id: str, decision: str) -> dict[str, Any]:
         item = next(item for item in self._reservations if item["action_id"] == action_id)
         item["status"] = "approved" if decision == "approve" else "rejected"
@@ -95,7 +117,26 @@ class FakeAgentClient:
             "app_mode": "mock",
         }
 
-    def ask(self, message: str, session_id: str | None = None) -> dict[str, Any]:
+
+    def ask(
+        self,
+        message: str,
+        session_id: str | None = None,
+        *,
+        auth_session_id: str | None = None,
+    ) -> dict[str, Any]:
+=======
+        client_error_kinds = {
+            "client_connection": ("안내 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.", "connection"),
+            "client_timeout": ("응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.", "timeout"),
+            "client_http": ("안내 서버가 요청을 처리하지 못했습니다.", "http"),
+            "client_invalid_response": ("안내 서버의 응답 형식이 올바르지 않습니다.", "invalid_response"),
+        }
+        if message in client_error_kinds:
+            from frontend.clients.agent_client import AgentClientError
+
+            error_message, kind = client_error_kinds[message]
+            raise AgentClientError(error_message, kind=kind)
         status = self._status_from(message)
         answer = {
             "completed": "교육용 운영 데이터 기준으로 해양관의 다음 펭귄 먹이시간은 14:30입니다.",

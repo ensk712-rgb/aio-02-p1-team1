@@ -27,6 +27,12 @@ def create_reservation_router(
             raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
         return user_id
 
+    def require_admin(auth_session_id: str | None) -> str:
+        user_id = require_user(auth_session_id)
+        if not sessions.is_admin(auth_session_id):
+            raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
+        return user_id
+
     @router.post("/api/reservations", status_code=status.HTTP_201_CREATED)
     async def create_reservation(
         request: ReservationRequest,
@@ -74,7 +80,7 @@ def create_reservation_router(
     async def pending_reservations(
         auth_session_id: Annotated[str | None, Header(alias="X-Auth-Session")] = None,
     ) -> dict[str, list[dict[str, Any]]]:
-        require_user(auth_session_id)
+        require_admin(auth_session_id)
         return {"items": reservations.list_pending()}
 
     @router.post("/api/admin/reservations/{action_id}/decision")
@@ -83,7 +89,7 @@ def create_reservation_router(
         request: ReservationDecisionRequest,
         auth_session_id: Annotated[str | None, Header(alias="X-Auth-Session")] = None,
     ) -> dict[str, Any]:
-        require_user(auth_session_id)
+        require_admin(auth_session_id)
         result = reservations.decide(action_id, request.decision)
         if result is None:
             raise HTTPException(status_code=409, detail="이미 처리됐거나 존재하지 않는 요청입니다.")

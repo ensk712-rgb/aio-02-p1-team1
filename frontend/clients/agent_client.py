@@ -20,11 +20,18 @@ class AgentClient:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
 
-    def ask(self, message: str, session_id: str | None = None) -> dict[str, Any]:
+    def ask(
+        self,
+        message: str,
+        session_id: str | None = None,
+        *,
+        auth_session_id: str | None = None,
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {"message": message}
         if session_id:
             payload["session_id"] = session_id
-        return self._request("POST", "/api/agent/ask", json=payload)
+        headers = {"X-Auth-Session": auth_session_id} if auth_session_id else {}
+        return self._request("POST", "/api/agent/ask", json=payload, headers=headers)
 
     def get_health(self) -> dict[str, Any]:
         return self._request("GET", "/api/health")
@@ -88,6 +95,14 @@ class AgentClient:
             "GET",
             "/api/admin/reservations/pending",
             headers={"X-Auth-Session": auth_session_id},
+        )
+
+    def get_admin_trace(self, auth_session_id: str, session_id: str) -> dict[str, Any]:
+        return self._request(
+            "GET",
+            "/api/admin/trace",
+            headers={"X-Auth-Session": auth_session_id},
+            params={"session_id": session_id},
         )
 
     def decide_reservation(

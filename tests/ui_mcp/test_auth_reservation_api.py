@@ -27,12 +27,14 @@ def _client(tmp_path, *, pending_actions=None) -> tuple[TestClient, UserReposito
     return TestClient(app), users
 
 
-def test_database_contains_only_fixed_test_user(tmp_path) -> None:
+def test_database_contains_fixed_user_and_admin(tmp_path) -> None:
     client, users = _client(tmp_path)
     del client
     with sqlite3.connect(users._db_path) as connection:
-        rows = connection.execute("SELECT user_id, password FROM users").fetchall()
-    assert rows == [("TEST", "1234")]
+        rows = connection.execute(
+            "SELECT user_id, role FROM users ORDER BY user_id"
+        ).fetchall()
+    assert rows == [("TEST", "user"), ("admin", "admin")]
 
 
 def test_login_rejects_wrong_password_without_echo(tmp_path) -> None:
@@ -55,6 +57,7 @@ def test_login_reservation_and_admin_approval_flow(tmp_path) -> None:
     body = login.json()
     assert body["success"] is True
     assert body["user_id"] == "TEST"
+    assert body["role"] == "user"
     assert "password" not in body
     headers = {"X-Auth-Session": body["auth_session_id"]}
 
@@ -71,7 +74,7 @@ def test_login_reservation_and_admin_approval_flow(tmp_path) -> None:
     assert action["approval_status"] == "pending"
 
     # 사용자 확인 전에는 실제 예약과 관리자 승인 목록이 변경되지 않는다.
-    assert client.get("/api/admin/reservations/pending", headers=headers).json()["items"] == []
+    assert client.get("/api/admin/reservations/pending", headers=headers).status_code == 403
     confirmed = client.post(
         "/api/agent/confirm",
         headers=headers,
@@ -81,20 +84,25 @@ def test_login_reservation_and_admin_approval_flow(tmp_path) -> None:
     assert confirmed.json()["status"] == "completed"
     reservation_id = confirmed.json()["reservation"]["action_id"]
 
-    pending = client.get("/api/admin/reservations/pending", headers=headers)
+    admin_login = client.post(
+        "/api/auth/login", json={"user_id": "admin", "password": "1234"}
+    ).json()
+    assert admin_login["role"] == "admin"
+    admin_headers = {"X-Auth-Session": admin_login["auth_session_id"]}
+    pending = client.get("/api/admin/reservations/pending", headers=admin_headers)
     assert pending.status_code == 200
     assert [item["action_id"] for item in pending.json()["items"]] == [reservation_id]
 
     approved = client.post(
         f"/api/admin/reservations/{reservation_id}/decision",
-        headers=headers,
+        headers=admin_headers,
         json={"decision": "approve"},
     )
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
     duplicate = client.post(
         f"/api/admin/reservations/{reservation_id}/decision",
-        headers=headers,
+        headers=admin_headers,
         json={"decision": "approve"},
     )
     assert duplicate.status_code == 409
@@ -149,4 +157,4 @@ def test_confirmation_cancel_expiry_session_and_reuse_are_server_decisions(tmp_p
     )
     assert expired.status_code == 409
     assert "만료" in expired.json()["detail"]
-    assert client.get("/api/admin/reservations/pending", headers=headers).json()["items"] == []
+    assert client.get("/api/admin/reservations/pending", headers=headers).status_code == 403
