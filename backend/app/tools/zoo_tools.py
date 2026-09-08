@@ -5,7 +5,7 @@ import하지 않는다 — mcp_server 프로세스가 이 모듈을 그대로 �
 때문에, 여기서 FastAPI/Runtime을 import하면 순환 의존이 생긴다.
 
 위험도: 전부 read. P0 3종(get_feeding_schedule/check_closure_status/
-find_habitat_route) + P1 lookup_ticket_scope.
+find_habitat_route) + P1 lookup_ticket_scope/get_course_info.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from backend.app.core.config import DATA_DIR, try_get_settings
 from backend.app.schemas.common import ToolError, ToolRunResult
 from backend.app.schemas.tools import (
     ClosureStatusInput,
+    CourseInfoInput,
     FeedingScheduleInput,
     RouteInput,
     TicketScopeInput,
@@ -310,6 +311,63 @@ def lookup_ticket_scope(ticket_type: str, *, now: datetime | None = None) -> Too
             "included": row["included"],
             "excluded": row["excluded"],
         },
+        error=None,
+        source=SOURCE_NAME,
+        retrieved_at=now,
+    )
+
+
+def get_course_info(name: str | None = None, *, now: datetime | None = None) -> ToolRunResult:
+    """name=None이면 전체 추천 코스 목록을, 지정하면 해당 코스 하나를 items 목록으로 반환한다.
+
+    각 코스는 순서가 있는 시설 목록(habitats)과 예상 총 관람 시간(total_minutes)을
+    담는다. 티켓 조회와 마찬가지로 시간 기준 데이터가 아니므로 as_of는 포함하지
+    않는다.
+    """
+    try:
+        validated = CourseInfoInput(name=name)
+    except ValidationError as exc:
+        return _not_found_result("INVALID_ARGUMENT", str(exc))
+
+    now = now or _resolve_now()
+    payload = _load_json("operations/courses.json")
+    all_rows = payload["courses"]
+
+    if validated.name is None:
+        items = [
+            {
+                "name": row["name"],
+                "description": row["description"],
+                "habitats": row["habitats"],
+                "total_minutes": row["total_minutes"],
+            }
+            for row in all_rows
+        ]
+        return ToolRunResult(
+            success=True,
+            data={"items": items},
+            error=None,
+            source=SOURCE_NAME,
+            retrieved_at=now,
+        )
+
+    row = next((r for r in all_rows if r["name"] == validated.name), None)
+    if row is None:
+        return _not_found_result(
+            "COURSE_NOT_FOUND", f"'{name}'은(는) 등록된 코스가 아닙니다."
+        )
+
+    items = [
+        {
+            "name": row["name"],
+            "description": row["description"],
+            "habitats": row["habitats"],
+            "total_minutes": row["total_minutes"],
+        }
+    ]
+    return ToolRunResult(
+        success=True,
+        data={"items": items},
         error=None,
         source=SOURCE_NAME,
         retrieved_at=now,
