@@ -1,0 +1,15 @@
+fastapi
+google-genai
+httpx
+mcp>=1.27,<2
+openai
+pgvector
+psycopg[binary]
+pydantic
+pydantic-settings
+python-dotenv
+python-multipart
+pytest
+redis
+streamlit
+uvicorn
