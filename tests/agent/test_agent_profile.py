@@ -17,6 +17,7 @@ def test_zoo_guide_profile_has_p0_tools_and_ticket_scope() -> None:
         "check_closure_status",
         "find_habitat_route",
         "lookup_ticket_scope",
+        "get_course_info",
         "reserve_experience_program",
     }
     assert tool_policies["reserve_experience_program"].risk == "change"
