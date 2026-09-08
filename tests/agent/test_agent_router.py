@@ -13,18 +13,25 @@ class FakeAgentService:
 
     def __init__(self) -> None:
         self.received_requests: list[AgentAskRequest] = []
+        self.received_auth_session_ids: list[str | None] = []
         self.raise_invalid_session = False
         self.raise_unexpected_error = False
 
-    async def handle_ask(self, request: AgentAskRequest) -> AgentAskResponse:
-        """요청을 기록하고 설정에 맞는 응답 또는 예외를 반환한다."""
+    async def handle_ask(
+        self,
+        request: AgentAskRequest,
+        *,
+        auth_session_id: str | None = None,
+    ) -> AgentAskResponse:
+        """요청과 로그인 세션을 기록하고 설정에 맞는 응답 또는 예외를 반환한다."""
         self.received_requests.append(request)
+        self.received_auth_session_ids.append(auth_session_id)
 
         if self.raise_invalid_session:
-            raise InvalidSessionError("가짜 잘못된 세션")
+            raise InvalidSessionError("가짜 만료된 세션")
 
         if self.raise_unexpected_error:
-            raise RuntimeError("내부 구현 세부사항은 HTTP에 노출하면 안 됩니다.")
+            raise RuntimeError("내부 구현 상세사항은 HTTP로 노출하면 안 됩니다.")
 
         return AgentAskResponse(
             run_id="run_router_test",
@@ -62,10 +69,26 @@ def test_ask_agent_returns_service_response() -> None:
     assert response.json()["status"] == "completed"
     assert response.json()["session_id"] == "session_router_test"
     assert service.received_requests[0].message == "펭귄 먹이시간 알려줘"
+    assert service.received_auth_session_ids == [None]
+
+
+def test_ask_agent_forwards_auth_session_header() -> None:
+    """예약용 로그인 세션 헤더는 Agent Service까지 전달되어야 한다."""
+    service = FakeAgentService()
+    client = create_client(service)
+
+    response = client.post(
+        "/api/agent/ask",
+        json={"message": "사육사 체험 2명 예약해 줘", "session_id": None},
+        headers={"X-Auth-Session": "auth_router_test"},
+    )
+
+    assert response.status_code == 200
+    assert service.received_auth_session_ids == ["auth_router_test"]
 
 
 def test_ask_agent_rejects_unknown_request_field() -> None:
-    """Tool 이름을 직접 주입하는 정의되지 않은 JSON 필드는 HTTP 422여야 한다."""
+    """정의되지 않은 JSON 필드는 HTTP 422로 거절해야 한다."""
     service = FakeAgentService()
     client = create_client(service)
 
@@ -83,7 +106,7 @@ def test_ask_agent_rejects_unknown_request_field() -> None:
 
 
 def test_ask_agent_returns_403_for_invalid_session() -> None:
-    """유효하지 않은 세션은 HTTP 403과 일반 안내 문장으로 반환해야 한다."""
+    """유효하지 않은 대화 세션은 일반 안내 문장과 HTTP 403을 반환해야 한다."""
     service = FakeAgentService()
     service.raise_invalid_session = True
     client = create_client(service)
@@ -98,7 +121,7 @@ def test_ask_agent_returns_403_for_invalid_session() -> None:
 
 
 def test_ask_agent_hides_unexpected_error_details() -> None:
-    """예상하지 못한 예외는 내부 원문 대신 HTTP 500 일반 문장만 반환해야 한다."""
+    """예상하지 못한 예외의 내부 상세 정보는 HTTP 응답에 노출하면 안 된다."""
     service = FakeAgentService()
     service.raise_unexpected_error = True
     client = create_client(service)
