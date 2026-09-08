@@ -20,6 +20,7 @@ from backend.app.schemas.agent import AgentState
 from backend.app.schemas.rag import RagInput
 from backend.app.schemas.tools import (
     ClosureStatusInput,
+    CourseInfoInput,
     FeedingScheduleInput,
     HabitatRouteInput,
     ReservationToolInput,
@@ -76,7 +77,7 @@ class ToolExecutor:
 
         Args:
             rag_search: 동물 정보 검색 함수다.
-            mcp_client: 먹이시간·휴장·경로 조회를 담당하는 MCP Client다.
+            mcp_client: 먹이시간·휴장·경로·코스 조회를 담당하는 MCP Client다.
             reservation_proposer: 예약 확인 대기 정보를 만드는 Backend 함수다.
             max_same_tool_calls: 같은 Tool과 같은 인자의 최대 실행 횟수다.
             max_tool_calls: 한 Agent 실행에서 허용하는 전체 Tool 실행 횟수다.
@@ -249,7 +250,11 @@ class ToolExecutor:
         arguments: Mapping[str, Any],
         profile: AgentProfile,
     ) -> BaseModel | ToolRunResult:
-        """Tool 권한과 Pydantic 입력 모델을 검사한다."""
+        """Tool 권한과 Pydantic 입력 모델을 검사한다.
+
+        각 허용 Tool 이름을 Pydantic 입력 모델에 명시적으로 연결한다.
+        이 연결이 없으면 Tool이 Profile에 있더라도 실행하지 않아야 한다.
+        """
         if name == "retrieve_animal_info":
             if "animal_cards" not in profile.allowed_rag_collections:
                 return self._policy_error(
@@ -271,6 +276,7 @@ class ToolExecutor:
                 "check_closure_status": ClosureStatusInput,
                 "find_habitat_route": HabitatRouteInput,
                 "lookup_ticket_scope": TicketScopeInput,
+                "get_course_info": CourseInfoInput,
                 RESERVATION_TOOL_NAME: ReservationToolInput,
             }
             input_model = input_models.get(name)
