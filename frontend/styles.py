@@ -48,7 +48,27 @@ def apply_theme() -> None:
     [data-testid="stPageLink"] a:hover { background:rgba(255,255,255,.13); }
     .zoo-route { background:linear-gradient(145deg,var(--moss-soft),var(--moss)); border-radius:14px; padding:22px; text-align:center; font-size:1.05rem; line-height:2.8; color:var(--ink); }
     .zoo-status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ok); margin-right:6px; }
+
+    .zoo-photo-map { margin:1rem 0 0; border:1px solid var(--sand-2); border-radius:14px; overflow:hidden; background:var(--paper); box-shadow:0 20px 48px rgba(14,42,33,.16); }
+    .zoo-photo-map__canvas { position:relative; aspect-ratio:3/2; overflow:hidden; background:var(--moss-soft); }
+    .zoo-photo-map__canvas img { display:block; width:100%; height:100%; object-fit:cover; }
+    .zoo-photo-map__canvas svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+    .route-shadow,.route-line { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+    .route-shadow { stroke:rgba(255,255,255,.92); stroke-width:16; }
+    .route-line { stroke:var(--forest); stroke-width:8; stroke-dasharray:18 13; animation:zoo-route-flow 1.1s linear infinite; filter:drop-shadow(0 3px 3px rgba(7,69,47,.32)); }
+    .route-marker circle { fill:var(--paper); stroke:var(--forest); stroke-width:7; }
+    .route-marker .marker-core { fill:var(--forest); stroke:none; }
+    .route-marker.is-closed circle { stroke:var(--danger); stroke-dasharray:7 5; }
+    .route-marker.is-closed .marker-core { fill:var(--danger); }
+    .route-marker text { fill:#fff; stroke:rgba(7,69,47,.94); stroke-width:9; paint-order:stroke; text-anchor:middle; font:800 23px var(--sans); letter-spacing:-.02em; }
+    .zoo-photo-map figcaption { display:flex; align-items:center; gap:18px; padding:11px 16px; color:var(--ink-2); font-size:.78rem; font-weight:700; }
+    .zoo-photo-map figcaption span { display:inline-flex; align-items:center; gap:7px; }
+    .zoo-photo-map figcaption small { margin-left:auto; color:var(--muted); font-weight:500; }
+    .map-key { display:inline-block; width:24px; height:5px; border-radius:99px; background:var(--forest); }
+    .map-key--closed { width:13px; height:13px; border:2px dashed var(--danger); background:transparent; }
+    @keyframes zoo-route-flow { to { stroke-dashoffset:-31; } }
     @media (max-width:800px) { [data-testid="stSidebar"]{min-width:auto;max-width:none}.block-container{padding:.8rem 1rem 2rem}.zoo-hero{min-height:240px;padding:28px 24px}.zoo-page-hero{padding:26px 24px} }
+    @media (max-width:800px) { .zoo-photo-map figcaption{gap:10px;flex-wrap:wrap}.zoo-photo-map figcaption small{width:100%;margin-left:0}.route-marker text{font-size:28px} }
     @media (prefers-reduced-motion:reduce) { *{scroll-behavior:auto!important;transition:none!important} }
     </style>
     """)
