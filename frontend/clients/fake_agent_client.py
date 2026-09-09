@@ -107,6 +107,9 @@ class FakeAgentClient:
 
     def get_admin_trace(self, auth_session_id: str, session_id: str) -> dict[str, Any]:
         return {
+            "session_id": session_id,
+            "detail_expired": False,
+            "summary": {"session_id": session_id, "status": "completed"},
             "runs": [
                 {
                     "run_id": "run_fake_001",
@@ -117,6 +120,19 @@ class FakeAgentClient:
                     ],
                 }
             ] if session_id else []
+        }
+
+    def list_admin_trace_sessions(self, auth_session_id: str) -> dict[str, Any]:
+        return {
+            "sessions": [
+                {
+                    "session_id": "guest-test",
+                    "last_run_at": "2026-09-09T03:00:00+00:00",
+                    "status": "completed",
+                    "question_preview": "펭귄 먹이시간을 알려줘",
+                    "tools": ["get_feeding_schedule"],
+                }
+            ]
         }
 
     def decide_reservation(self, auth_session_id: str, action_id: str, decision: str) -> dict[str, Any]:

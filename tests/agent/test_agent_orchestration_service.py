@@ -48,6 +48,8 @@ class FakeTraceRepository:
         run_id: str,
         status: str,
         trace: list[dict],
+        *,
+        question: str | None = None,
     ) -> None:
         """저장하려는 값을 검증용 목록에 추가한다."""
         self.saved_runs.append(
@@ -56,6 +58,7 @@ class FakeTraceRepository:
                 "run_id": run_id,
                 "status": status,
                 "trace": trace,
+                "question": question,
             }
         )
 

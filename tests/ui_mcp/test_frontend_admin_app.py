@@ -73,7 +73,6 @@ def test_admin_trace_screen_renders_result(monkeypatch) -> None:
     at.session_state["admin_user_id"] = "admin"
     at.session_state["admin_auth_session_id"] = "auth_fake_admin"
     at.run()
-    at.text_input(key="admin_trace_session_id").set_value("guest-test")
-    at.button(key="FormSubmitter:admin_trace_search-Trace 조회").click().run()
     assert not at.exception
+    assert at.selectbox(key="admin_trace_session_id")
     assert any("run_fake_001" in item.label for item in at.expander)

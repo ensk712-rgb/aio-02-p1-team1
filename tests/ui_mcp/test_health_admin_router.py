@@ -50,6 +50,16 @@ def _admin_client(token: str) -> TestClient:
                 {"run_id": "run_1", "status": "completed", "trace": []}
             ] if session_id == "session_1" else [],
             admin_token=token,
+            list_recent_summaries=lambda: [
+                {
+                    "session_id": "session_1",
+                    "last_run_at": "2026-09-09T00:00:00+00:00",
+                    "status": "completed",
+                    "question_preview": "먹이시간 알려줘",
+                    "tools": ["get_feeding_schedule"],
+                }
+            ],
+            get_summary=lambda session_id: {"session_id": session_id} if session_id == "session_1" else None,
         )
     )
     return TestClient(app)
@@ -103,6 +113,17 @@ def test_admin_trace_returns_repository_contract() -> None:
         headers={"Authorization": "Bearer test-admin-token"},
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "runs": [{"run_id": "run_1", "status": "completed", "trace": []}]
-    }
+    assert response.json()["runs"] == [{"run_id": "run_1", "status": "completed", "trace": []}]
+    assert response.json()["detail_expired"] is False
+    assert response.json()["summary"] == {"session_id": "session_1"}
+
+
+def test_admin_recent_trace_sessions_requires_admin_and_returns_summaries() -> None:
+    client = _admin_client("test-admin-token")
+    assert client.get("/api/admin/trace/sessions").status_code == 401
+    response = client.get(
+        "/api/admin/trace/sessions",
+        headers={"Authorization": "Bearer test-admin-token"},
+    )
+    assert response.status_code == 200
+    assert response.json()["sessions"][0]["question_preview"] == "먹이시간 알려줘"

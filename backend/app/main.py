@@ -173,6 +173,8 @@ def create_app(
             trace_repository.list_runs,
             admin_token=settings.ADMIN_TOKEN,
             auth_sessions=auth_sessions,
+            list_recent_summaries=trace_repository.list_recent_summaries,
+            get_summary=trace_repository.get_summary,
         )
     )
     application.include_router(create_tools_router())
