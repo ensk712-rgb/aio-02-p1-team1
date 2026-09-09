@@ -1,117 +1,206 @@
-# 동물원_관람_지원_Zoo_Visit_Guide_에이전트 시험 결과 보고서_0.1
+# 동물원 관람 지원 Zoo Visit Guide 에이전트 시험 결과 보고서_0.1
 
-### 1. 시험 목적
+## 1. 시험 개요
 
-현재 프로젝트 폴더에 구현된 동물원 관람 지원(Zoo Visit Guide) 에이전트의 실제 소스코드를 기준으로 다음 사항을 확인한다.
+### 1.1 시험 목적
 
-- 사용자 질문이 동물 정보 RAG, 운영 조회 Tool, 맞춤 코스, 예약 승인 흐름으로 안전하게 연결되는지 확인한다.
-- 할루시네이션, 잘못된 Tool 선택, 필수 파라미터 누락, Tool 결과와 최종 응답의 불일치가 실행 전에 차단되거나 명확한 실패 상태로 종료되는지 확인한다.
-- MCP timeout 재시도, 동일 Tool 반복 제한, 전체 Tool 호출 제한, Agent 단계 제한과 전체 실행 timeout이 구현되어 있는지 확인한다.
-- 결제·비밀정보·질병 확진 요청, 문서 내 프롬프트 주입, 미인증 예약과 다른 세션의 예약 승인이 차단되는지 확인한다.
-- 샘플 보고서가 요구하는 자기 성찰 적용 전후 지표를 현재 구현과 실행 로그만으로 산출할 수 있는지 확인한다.
+본 시험은 프로젝트 폴더에 구현된 Zoo Visit Guide 에이전트가 사용자 요청을 안전하고 일관되게 처리하는지 소스코드와 자동화 시험으로 검증한다. 주요 검증 대상은 동물 정보 RAG, 동물원 운영 정보 Tool, 날씨 기반 코스 추천, 체험 예약 승인 흐름, 오류 및 반복 제한, 응답 근거와 Trace의 일치 여부다.
 
-소스 분석 결과, 현재 구현에는 자기 성찰 적용 전·후를 구분하는 버전, 실행 플래그, 전용 노드 또는 Trace 필드가 없다. 다만 입력 검증, 정책 분류, 제한적 재시도, 결과 재전달, 상태·Trace 검증으로 구성된 안전 실행 루프는 구현되어 있다. 따라서 본 보고서는 이 루프의 현재 품질을 평가하며, 근거가 없는 적용 전·후 개선 수치는 작성하지 않는다.
+샘플 보고서가 요구하는 자기 성찰 적용 전후 비교도 검토했다. 그러나 현재 구현에는 자기 성찰 기능을 켜고 끄는 실행 옵션, 전용 reflection 노드, 적용 전 기준 버전 또는 동일 조건 반복 실행 로그가 없다. 따라서 근거가 없는 전후 성능 수치는 산출하지 않고, 현재 구현된 안전 실행 루프와 시험 결과를 평가한다.
 
-### 2. 시험 데이터 구성
+### 1.2 시험 기준과 범위
 
-| 시험 유형                         | 실행 건수 | PASS | FAIL | ERROR | 주요 확인 대상                                                                                                     |
-| --------------------------------- | --------: | ---: | ---: | ----: | ------------------------------------------------------------------------------------------------------------------ |
-| Agent 단위시험                    |        93 |   93 |    0 |     0 | Profile, Provider, Runtime, Allowlist, strict arguments, 반복·호출 한도, 예약 Pending Action, 날씨 기반 코스 제한 |
-| 데이터·RAG·평가·운영 로직시험  |       104 |   89 |   11 |     4 | RAG 점수·출처, 프롬프트 주입, 시나리오 평가, 세션 Memory, 운영 데이터, PostgreSQL·Redis 연결                     |
-| 정책·RAG 연결시험                |         7 |    4 |    3 |     0 | A-02·A-09·A-10·A-12 정책 차단, N-01·A-01·A-11 RAG→Executor→Runtime 연결                                     |
-| MCP Client·오류·Router 계약시험 |        27 |   27 |    0 |     0 | MCP 오류 표준화, timeout 재시도, Tool 결과 변환, API Router 계약                                                   |
-| 실제 MCP 프로세스 직접시험        |         2 |    1 |    1 |     0 | Tool 목록 발견과 운영 Tool 3종 호출                                                                                |
-| 합계                              |       233 |  214 |   15 |     4 | 현재 체크아웃에서 실행된 독립 시험 결과                                                                            |
+- 시험일: 2026-09-09
+- 대상 commit: `1ca0a25`
+- 실행 Python: `C:\Users\Playdata\AppData\Local\Programs\Python\Python312\python.exe` 3.12
+- 분석 범위: `backend/app/agents`, `backend/app/tools`, `backend/app/providers`, `backend/app/services`, `backend/app/routers`, `backend/app/mcp_client`, `mcp_server`, `eval`, `tests`
+- 변경 범위: 구현 소스는 변경하지 않고 본 보고서만 작성
 
-실행 환경은 `py -3.12`가 선택한 Python 3.12이며 시험일은 2026-09-09이다. 총 233건 중 214건이 통과하여 현재 실행 기준 통과율은 91.8%다. FAIL 15건과 ERROR 4건은 성공으로 환산하지 않았다.
+## 2. 구현 구조 분석
 
-전체 권장 시험 명령은 수집 단계에서 중단됐다. `backend/app/core/db.py`가 사용하는 `psycopg_pool`은 `backend/requirements.txt`에는 선언되어 있지만 루트 `requirements.txt`에는 없고, 현재 Python 3.12 환경에도 설치되어 있지 않았다. 이에 따라 Backend main을 import하는 UI/API 시험 4개 파일과 PostgreSQL 시험 일부를 수집하지 못했다. 또한 `.env`의 `STORAGE_MODE=persistent`가 RAG·세션 시험에 적용되어 PostgreSQL·Redis가 필요한 경로로 전환됐으나, 실행 당시 5432·6380 포트의 로컬 Listener는 확인되지 않았다.
+| 계층           | 주요 구현                                                       | 시험 관점                                                                       |
+| -------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Agent Profile  | `backend/app/agents/zoo_guide_agent.py`, `registry.py`      | 지시문, 허용 Tool과 RAG collection, 미등록 Agent 차단                           |
+| Runtime        | `backend/app/agents/runtime.py`                               | 금지 요청 선차단, Model-Tool 반복, 상태·종료 사유·Trace 구성, 단계·시간 제한 |
+| Provider       | `mock_provider.py`, `openai_provider.py`                    | Tool schema 전달, 병렬 호출 금지, 응답 및 arguments 해석                        |
+| Tool Executor  | `backend/app/tools/executor.py`                               | Allowlist, strict 입력 검증, 반복·총 호출 제한, MCP timeout 재시도             |
+| RAG·운영 Tool | `rag_service.py`, `zoo_tools.py`, MCP server tools          | 검색 점수·출처, 운영 데이터 조회, 공통 결과 계약                               |
+| 승인 흐름      | `approval_service.py`, 예약 Router·Repository                | 로그인, 세션 소유권, TTL, pending→processing→completed 전이                   |
+| Orchestration  | `agent_orchestration_service.py`                              | 서버 세션·최근 대화·인증 컨텍스트 결합, 실행 결과 저장                        |
+| 평가           | `eval/run.py`, `eval/scenarios/*.json`, `eval_service.py` | 기대 status, 필수·금지 Tool, 최소 출처 수 비교                                 |
 
-평가 시나리오 파일에는 정상 5건(N-01, N-01b, N-02, N-03, N-04)과 비정상 9건(A-01, A-01b, A-02, A-03, A-09, A-10, A-11, A-12, A-14), 총 14건이 정의되어 있다. 실제 OpenAI Provider를 사용하는 동일 시나리오의 전후 반복 실행 로그는 없으므로 실제 LLM 성능 비교 데이터로 사용하지 않았다.
+현재 실행 흐름은 다음과 같다.
 
-### 3. 오류 감지 기준
+1. Orchestration Service가 세션과 인증 컨텍스트를 구성한다.
+2. Runtime이 결제, 비밀정보, 권한 변경, 삭제, 질병 확진 등 금지 요청을 Provider 호출 전에 차단한다.
+3. 코스 요청이면 날씨를 먼저 조회해 실내·실외 Tool 후보를 좁히며, 날씨 실패 시 기본 코스 Tool로 복귀한다.
+4. Provider가 질문과 Tool schema를 바탕으로 Tool 호출 또는 최종 답변을 선택한다.
+5. Executor가 허용 Tool, RAG collection, JSON 객체 여부와 Pydantic strict schema를 검증한다.
+6. 조회는 MCP, 동물 정보는 RAG, 예약 제안은 승인 서비스로 분기한다.
+7. 성공한 Tool 결과를 Provider에 다시 전달하고, Runtime이 실제 호출 기록을 기준으로 상태, 의도, 출처, 승인 정보와 Trace를 만든다.
+8. 실패는 `needs_clarification`, `rejected`, `stopped`, `error` 중 하나로 종결한다.
 
-| 오류 유형                | 소스코드상 감지 기준                                                                                                                                      | 정상 처리 기준                                                        | 현재 판정                                                          |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| 할루시네이션             | Agent Instructions가 검색·Tool 결과에 없는 사실·시간·운영 정보 추측을 금지하고, RAG가`RAG_MIN_SCORE` 미만 Chunk를 제외                               | 근거가 없으면`matched=false`, 빈 `chunks`, 확인 불가 안내         | 정책은 구현됐으나 현재 persistent RAG 연결 실패로 종단 검증 미통과 |
-| 도구 선택 오류           | `ToolExecutor._validate_arguments()`가 Profile `allowed_tools`와 `allowed_rag_collections`를 검사                                                   | 미허용 Tool은 MCP 호출 없이`TOOL_NOT_ALLOWED`→`rejected`         | PASS                                                               |
-| 파라미터 누락·타입 오류 | Tool별 Pydantic 입력 모델을`strict=True`로 검증하고 JSON 객체 여부를 검사                                                                               | MCP 실행 없이`INVALID_TOOL_ARGUMENTS` 또는 `needs_clarification`  | PASS                                                               |
-| 응답 불일치              | Runtime이 실제`state.tool_calls`로 `intent`를 계산하고 `status`, `termination_reason`, `sources`, `pending_action`, `trace`를 응답으로 구성 | Tool 결과·출처·상태와 최종 응답이 일치                              | 단위시험 PASS, RAG 연결 3건 FAIL                                   |
-| 반복 초과                | 정규화된`Tool명:arguments` 키별 실행 횟수와 전체 `tool_attempts` 검사                                                                                 | 동일 호출은 최대 2회, 3회째 전에`stopped`; 전체 Tool은 8회까지 허용 | PASS                                                               |
-| Agent 단계·시간 초과    | Runtime의`max_agent_steps=6`, `asyncio.wait_for(..., 90초)`                                                                                           | 7번째 LLM 호출 전`stopped`, 전체 timeout은 `error`                | PASS                                                               |
-| MCP timeout              | Tool 호출을`asyncio.wait_for`로 감싸고 `mcp_retry_count=1` 적용                                                                                       | 최초 호출과 1회 재시도 후`MCP_TIMEOUT`→`error`                   | 오류 주입시험 PASS                                                 |
-| MCP 결과 오류            | MCP Client가 빈 결과, 비 JSON,`success=false`를 표준 오류로 변환                                                                                        | 내부 예외·허위 운영 정보를 노출하지 않고`error`                    | PASS                                                               |
-| 금지 요청                | `detect_forbidden_request()`가 결제, 비밀정보, 역할 변경, 삭제, 질병 확진 표현을 Provider 호출 전에 검사                                                | LLM·Tool 실행 없이`rejected`                                       | PASS                                                               |
-| 예약 승인 오류           | 로그인 사용자·인증 세션, action 소유 세션, TTL, 상태 전이를 검사                                                                                         | 확인 전 예약 미생성, 취소·만료·중복·타 세션은`rejected`          | 단위·API 계약시험 PASS, 전체 persistent E2E는 미실행              |
-| 프롬프트 주입            | 문서 텍스트는 Tool Result 데이터로만 전달하고 예약 Tool 호출 여부와 비밀 문자열 노출을 검사                                                               | 문서 속 명령 미실행, 비밀정보 미노출                                  | 단위 정책은 존재하나 A-11 RAG 연결 FAIL                            |
+이 구조는 검증과 제한을 포함한 안전 실행 루프이지만, 모델이 최초 답변을 별도로 비평하고 프롬프트나 Tool 선택을 수정한 뒤 재실행하는 명시적 자기 성찰 루프는 아니다.
 
-할루시네이션은 단순히 답변 문구가 다르다는 이유로 판정하지 않는다. RAG 출처·점수 또는 MCP 원본 결과에 없는 사실을 최종 답변이 포함했는지로 판정한다. 도구 선택 정확도 역시 Tool 이름만 보지 않고 Profile 허용 여부, 입력 Schema, 실제 호출 횟수와 최종 `intent`를 함께 검사한다.
+## 3. 시험 데이터와 실행 결과
 
-### 4. 자기 성찰 루프
+### 3.1 평가 시나리오 구성
 
-현재 코드에 구현된 실행 흐름은 다음과 같다.
+`eval/scenarios`에는 정상 및 비정상 요청이 JSON으로 정의되어 있다. Agent 시나리오는 동물 정보 검색, 운영 조회, 코스 추천, 예약 제안, 필수값 누락, 근거 부족, 프롬프트 주입과 금지 요청을 포함한다. MCP 시나리오는 정상 조회, timeout과 잘못된 결과 계약을 포함하고, RAG 시나리오는 근거 일치와 미일치를 다룬다.
 
-1. `AgentOrchestrationService`가 서버 발급 세션을 확인하고 최근 대화, 로그인 사용자와 인증 세션을 Runtime에 전달한다.
-2. Runtime은 금지 요청을 먼저 검사한다. 해당하면 Provider와 Tool을 호출하지 않고 `rejected`로 종료한다.
-3. 맞춤 코스 요청이면 날씨 Tool을 선조회하여 실내·실외 Course Tool 후보를 좁힌다. 날씨 조회 실패는 코스 추천 전체를 즉시 실패시키지 않고 기본 Course Tool로 대체한다.
-4. Provider가 질문, Instructions, 발견된 Tool Schema, 이전 Tool Result를 받아 다음 Tool 또는 최종 답변을 선택한다.
-5. Runtime은 Provider의 arguments JSON이 객체인지 확인하고 Executor로 전달한다.
-6. Executor는 Allowlist, Pydantic strict arguments, 동일 Tool·arguments 반복 횟수, 전체 Tool 호출 횟수를 검사한다.
-7. 조회 Tool은 MCP, 동물 정보는 RAG, 예약 제안은 Backend Approval Service로 분리해 실행한다. MCP timeout만 1회 재시도하며 예약 변경 Tool은 자동 재시도하지 않는다.
-8. Runtime은 성공한 Tool Result를 Provider에 다시 전달한다. Provider가 최종 답변을 만들면 실제 Tool 기록을 기준으로 `intent`, 출처, 상태, 종료 사유와 Trace를 구성한다.
-9. Tool 오류는 `rejected`, `needs_clarification`, `stopped`, `error`로 변환하고 제한사항을 안내한다.
+### 3.2 재실행 결과
 
-이 흐름에는 감지→원인 분류→수정 전략 선택→재실행→검증의 일부가 포함되어 있지만, 모델이 자신의 답변을 별도 평가·수정하는 명시적 Self-reflection 단계는 없다. 특히 할루시네이션 감지 후 프롬프트를 자동 수정하거나, 실패 원인을 기반으로 Tool을 바꿔 재실행하거나, 최초 답변과 수정 답변의 일관성을 비교하는 전용 로직은 확인되지 않았다.
+전체 `pytest` 실행은 Backend import 시 `psycopg_pool` 누락으로 UI/API 시험 4개 파일의 수집 단계에서 중단됐다. 이후 수집 가능한 시험군을 분리해 실행했다.
 
-실제 RAG 연결시험에서는 Executor가 `rag_search`를 Awaitable로 가정하지만 연결시험은 동기 `ToolRunResult` 반환 함수를 주입하여 `TypeError: object ToolRunResult can't be used in 'await' expression`가 발생했다. 또한 `.env`가 persistent 모드여서 RAG 단위시험 10건이 PostgreSQL 경로로 진입한 뒤 `psycopg_pool` 누락으로 실패했다. 실제 MCP 직접시험은 Server 시작과 Tool 목록 조회 1건은 통과했지만 운영 Tool 호출 1건은 MCP 초기화 응답을 10초 안에 받지 못해 실패했다.
+| 시험군                   | PASS | FAIL | ERROR | 합계 | 판정         |
+| ------------------------ | ---: | ---: | ----: | ---: | ------------ |
+| Agent 단위시험           |   93 |    0 |     0 |   93 | 통과         |
+| 데이터·RAG·저장소 시험 |   99 |   10 |    15 |  124 | 미통과       |
+| 정책·RAG 통합시험       |    4 |    3 |     0 |    7 | 미통과       |
+| 수집 가능한 UI·MCP 시험 |   39 |   28 |     2 |   69 | 미통과       |
+| 분리 실행 합계           |  235 |   41 |    17 |  293 | 통과율 80.2% |
 
-### 5. 오류별 대응
+분리 실행의 80.2%는 현재 환경에서 나온 자동화 검증 통과율이다. 사용자 태스크 완료율, 실제 LLM의 도구 선택 정확도 또는 자기 성찰 효과를 뜻하지 않는다.
 
-| 오류                           |         구현된 재시도 횟수 | 구현된 대응 전략                                  | 종료 조건                                 | 시험 결과                                 |
-| ------------------------------ | -------------------------: | ------------------------------------------------- | ----------------------------------------- | ----------------------------------------- |
-| 필수 인자 누락·타입 오류      |                        0회 | Tool 호출 중단 후 추가 정보 요청                  | `needs_clarification`                   | PASS                                      |
-| 미허용 Tool                    |                        0회 | Allowlist 차단과 정책 Trace 기록                  | `rejected`, MCP 호출 0회                | PASS                                      |
-| MCP 조회 timeout               |                        1회 | 같은 검증 인자로 한 번 재시도                     | 총 2회 실패 후`error`                   | 오류 주입 PASS, 실제 직접 호출 FAIL       |
-| MCP 비 JSON·실패 응답         |                        0회 | `MCP_TOOL_ERROR`로 표준화                       | `error`                                 | PASS                                      |
-| RAG 근거 부족                  |                        0회 | 임계값 미만 Chunk 제거 후 확인 불가 응답          | `completed`, `matched=false`          | persistent 연결 문제로 FAIL               |
-| RAG 저장소 예외                |                        0회 | `RAG_SEARCH_ERROR`와 빈 데이터 반환             | `error`                                 | 오류 표준화 동작 확인, 정상 RAG 회귀 FAIL |
-| 동일 Tool·arguments 반복      |         같은 호출 최대 2회 | 3회째 실행 전에 차단                              | `stopped`, `repeat_limit_reached`     | PASS                                      |
-| 전체 Tool 호출 초과            |                     총 8회 | 9회째 실행 전에 차단                              | `stopped`, `tool_call_limit_reached`  | PASS                                      |
-| Agent 단계 초과                |               LLM 최대 6회 | 다음 Model 호출 전에 차단                         | `stopped`, `agent_step_limit_reached` | PASS                                      |
-| 전체 실행 timeout              |                재시도 없음 | Runtime 전체를 90초로 제한                        | `error`, `run_timeout`                | 단위시험 PASS                             |
-| 날씨 조회 실패                 | 날씨 정책 자체 재시도 없음 | 기본`get_course_info` 후보로 복귀               | 코스 실행 계속                            | PASS                                      |
-| 예약 인증 누락                 |                        0회 | Pending Action 생성 차단, 로그인 안내             | `needs_clarification`                   | PASS                                      |
-| 예약 취소·만료·중복·타 세션 |                        0회 | 소유권·TTL·상태 검사, 변경 Tool 무재시도        | `rejected`                              | 단위·계약시험 PASS                       |
-| 금지 요청·프롬프트 주입       |                        0회 | Provider 전 차단 또는 검색 문서를 데이터로만 취급 | `rejected` 또는 안전한 `completed`    | 금지 요청 PASS, A-11 연결 FAIL            |
+### 3.3 주요 실패 원인
 
-현재 대체 전략은 오류 유형별로 고정되어 있다. 보완 가능한 입력은 질문으로 되돌리고, 정책 위반은 차단하며, 조회 timeout만 제한적으로 재시도한다. 정상 근거가 없거나 외부 시스템이 실패했을 때 일반 지식이나 Mock 성공으로 조용히 대체하지 않는다.
+| 구분               | 재현 결과                                  | 원인 판단                                                                    | 영향                                            |
+| ------------------ | ------------------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------- |
+| Backend 시험 수집  | 4개 UI/API 파일 수집 오류                  | 현재 Python 환경에`psycopg_pool` 미설치                                    | Backend main 기반 시험 실행 불가                |
+| PostgreSQL 시험    | 다수 fixture setup 오류                    | 동일 의존성 누락 및 persistent 저장소 실행 조건 미충족                       | pgvector, 예약 원자성, seed 검증 불가           |
+| Redis 시험         | `127.0.0.1:6380` 연결 거부               | 시험 시 Redis listener 부재                                                  | 세션·Trace·TTL 영속화 검증 실패               |
+| RAG-Agent 통합     | 3건 실패,`ToolRunResult` await TypeError | Executor는 비동기`rag_search`를 기대하지만 통합 fixture가 동기 함수를 주입 | 정상 검색, no-match, 주입 방어의 종단 검증 실패 |
+| Vision 비동기 시험 | async 함수 실행 플러그인 오류              | 현재 환경에 적절한 pytest async plugin 미적용                                | Vision service 2건 미실행                       |
+| Streamlit UI       | 27건 연쇄 실패                             | `extra_streamlit_components` 누락으로 app import 실패                      | 화면 기능 검증 불가                             |
+| 실제 MCP 호출      | 운영 Tool 호출 timeout                     | MCP 초기화 응답을 10초 안에 받지 못함                                        | Tool 목록 이후 실제 호출 종단 검증 실패         |
 
-### 6. 비교 결과
+위 실패에는 구현 결함과 실행환경 결함이 혼재한다. RAG의 동기/비동기 계약 불일치는 코드·시험 계약 문제이며, 누락 패키지와 외부 저장소 미기동은 현재 검증 환경 문제다. 둘을 모두 해결하기 전에는 전체 시스템 통과를 선언할 수 없다.
 
-| 지표                  | 자기 성찰 적용 전 | 현재 구현 | 산식·근거                                                                                     |
-| --------------------- | ----------------: | --------: | ---------------------------------------------------------------------------------------------- |
-| 태스크 완료율         |         측정 불가 | 측정 불가 | 현재 pytest 통과율 91.8%(214÷233)는 구현 검증 통과율이며 사용자 태스크 완료율과 동일하지 않음 |
-| 도구 선택 정확도      |         측정 불가 | 측정 불가 | 실제 LLM으로 동일 시나리오를 반복 실행한 Tool 선택 로그와 정답 라벨별 집계가 없음              |
-| 응답 일관성           |         측정 불가 | 측정 불가 | 동일 입력 반복 실행 결과와 RAG·MCP 원본 대비 최종 답변의 건별 비교 로그가 없음                |
-| 평균 재시행 횟수      |         측정 불가 | 측정 불가 | Trace에`tool_attempts`는 있으나 전체 시나리오 결과에서 재시행 횟수를 집계한 원본 로그가 없음 |
-| 구현 시험 통과율      |         해당 없음 |     91.8% | PASS 214건 ÷ 실행 결과가 나온 233건. FAIL 15건, ERROR 4건 포함                                |
-| Agent 단위시험 통과율 |         해당 없음 |      100% | 93건 중 93건 PASS                                                                              |
-| 정책·RAG 연결 통과율 |         해당 없음 |     57.1% | 7건 중 4건 PASS, RAG 연결 3건 FAIL                                                             |
-| MCP 직접시험 통과율   |         해당 없음 |     50.0% | 2건 중 Tool 목록 발견 1건 PASS, 운영 Tool 호출 1건 FAIL                                        |
+## 4. 오류 감지 기준과 판정
 
-현재 결과만으로 자기 성찰이 태스크 완료율, Tool 선택 정확도, 응답 일관성 또는 평균 재시행 횟수를 개선했다고 결론 내릴 수 없다. 비교를 위해서는 같은 commit과 같은 14개 평가 시나리오를 대상으로 자기 성찰 비활성·활성 두 조건을 각각 반복 실행하고, `run_id`별 질문, Model Tool Call, arguments, Tool Result, 최종 답변, 재시행 횟수를 저장해야 한다.
+| 오류 유형                | 감지 기준                                                     | 기대 처리                                         | 현재 결과                                               |
+| ------------------------ | ------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------- |
+| 할루시네이션             | RAG/MCP 결과에 없는 사실·운영 정보를 최종 답변에 포함        | 근거가 없으면 확인 불가 안내, 허위 출처 금지      | 지시·RAG 임계값 구현, 통합 3건 실패로 종단 보증 미완료 |
+| 도구 선택 오류           | Profile 미허용 Tool 또는 collection 선택                      | MCP 호출 전`TOOL_NOT_ALLOWED` 및 `rejected`   | Agent 단위시험 통과                                     |
+| 파라미터 누락·타입 오류 | arguments가 JSON 객체가 아니거나 strict schema 불일치         | 호출 중지 후`INVALID_TOOL_ARGUMENTS`, 보완 질문 | Agent 단위시험 통과                                     |
+| 응답 불일치              | 실제 Tool 호출·결과·출처와 status, intent, 최종 안내 불일치 | 실제`state.tool_calls` 기반 응답 구성           | 단위시험 통과, RAG 종단 검증 미통과                     |
+| 동일 호출 반복           | 같은 Tool과 정규화 arguments의 반복 횟수 초과                 | 세 번째 실행 전에`REPEAT_LIMIT_REACHED`         | 통과                                                    |
+| 전체 Tool 초과           | 실행당 Tool 시도 횟수 8회 초과                                | 아홉 번째 실행 전에 중단                          | 통과                                                    |
+| Agent 단계 초과          | Model 단계 6회 초과                                           | 다음 Model 호출 전`stopped`                     | 통과                                                    |
+| 전체 실행 timeout        | 실행 90초 초과                                                | `error`, `run_timeout`                        | 단위시험 통과                                           |
+| MCP timeout              | Tool 응답 제한시간 초과                                       | 동일 인자로 1회 재시도 후 오류 종료               | 오류 주입시험 통과, 실제 MCP 호출 실패                  |
+| 금지 요청                | 결제·비밀정보·역할 변경·삭제·질병 확진 표현               | Provider와 Tool 호출 없이`rejected`             | 통과                                                    |
+| 예약 승인 오류           | 미인증, 타 세션, 만료, 중복 결정                              | 예약 미생성 또는 안전한 거절                      | 단위시험 통과, persistent E2E는 환경 오류               |
+| 프롬프트 주입            | 검색 문서 속 명령 실행 또는 비밀정보 노출                     | 문서를 데이터로만 취급                            | 정책 존재, RAG 통합 실패로 종단 검증 미완료             |
 
-### 7. 개선 이력
+## 5. 오류별 재시도와 대체 전략
 
-| 구분            | 발견 문제                                                           | 변경·조정 이력                                                                                                            | 확인 결과                                   |
-| --------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| 현재 Profile    | 근거 없는 사실·운영 정보 생성 위험                                 | Instructions에 추측 금지, 필수정보 질문, 예약 확인 전 완료 안내 금지, 금지 요청 거절을 명시                                | Profile·Runtime 단위시험 PASS              |
-| 현재 Runtime    | Provider의 잘못된 JSON, 빈 응답, 반복·시간 초과 위험               | JSON 객체 검증, 6단계·90초 제한, 상태·종료 사유·Trace 구성                                                              | Agent 단위시험 PASS                         |
-| 현재 Executor   | 미허용 Tool·잘못된 arguments·반복 호출 위험                       | Allowlist, Pydantic strict 검증, 동일 호출 2회·전체 8회 제한                                                              | Agent 단위시험 PASS                         |
-| 현재 MCP 처리   | timeout 또는 잘못된 결과를 성공으로 표시할 위험                     | timeout 1회 재시도, 오류 코드 표준화, 응답 봉투 검증                                                                       | 오류 주입·Router 계약시험 PASS             |
-| 현재 예약 처리  | 무승인·중복·타 세션 예약 위험                                     | 로그인 사용자와 인증 세션 전달, Pending Action, 소유권·TTL·상태 전이 검사, 변경 Tool 무재시도                            | 관련 단위·계약시험 PASS                    |
-| 2026-09-09 분석 | 자기 성찰 전후를 식별할 실행 조건과 비교 로그 없음                  | 소스 변경 없음. 향후 비활성·활성 실행 모드와 동일 시나리오 원본 로그가 필요                                               | 전후 지표 측정 불가                         |
-| 2026-09-09 시험 | RAG Callable의 동기·비동기 계약 불일치                             | 소스 변경 없음.`RagSearchFunction` 계약과 테스트 주입 함수를 같은 비동기 계약으로 통일한 뒤 N-01·A-01·A-11 재시험 필요 | 연결시험 3건 FAIL                           |
-| 2026-09-09 시험 | 루트 실행 환경에`psycopg_pool`·pytest async 지원이 완전하지 않음 | 소스·환경 변경 없음. 루트와 Backend requirements 계약을 통일하고 프로젝트 전용 Python 3.12.7 환경에서 재수집 필요         | 일부 UI/API·PostgreSQL 시험 수집 중단      |
-| 2026-09-09 시험 | `.env` persistent 모드와 실행 인프라 상태 불일치                  | 소스·환경 변경 없음. 시험별 Settings를 명시적으로 주입하고 PostgreSQL·Redis Listener를 확인한 뒤 재시험 필요             | RAG 10건, Redis 1건 FAIL; DB seed 4건 ERROR |
-| 2026-09-09 시험 | 실제 MCP 운영 Tool 호출 초기화 timeout                              | 소스 변경 없음. Server 프로세스 로그, 인터프리터, 포트와 Tool handler 응답을 확인한 뒤 직접 호출 재시험 필요               | MCP 직접시험 1건 FAIL                       |
+| 오류                      |           재시도 | 구현된 전략                            | 종료 조건                        |
+| ------------------------- | ---------------: | -------------------------------------- | -------------------------------- |
+| 필수 인자 누락·타입 오류 |              0회 | Tool 호출 중지, 추가 정보 요청         | 필수값 확보 또는 사용자 취소     |
+| 미허용 Tool               |              0회 | Allowlist에서 즉시 차단                | `rejected`                     |
+| MCP 조회 timeout          |              1회 | 같은 검증 인자로 재호출                | 총 2회 실패 후`error`          |
+| MCP 비 JSON·실패 응답    |              0회 | 표준 Tool 오류로 변환                  | `error`                        |
+| RAG 근거 부족             |              0회 | 임계값 미만 chunk 제외, 확인 불가 안내 | `matched=false` 결과 전달      |
+| 동일 Tool 반복            |    최대 2회 실행 | 세 번째 실행 전 차단                   | `stopped`, 반복 제한 사유 기록 |
+| 전체 Tool 호출            |    최대 8회 실행 | 아홉 번째 실행 전 차단                 | `stopped`, 호출 한도 사유 기록 |
+| Agent 단계                |         최대 6회 | 다음 Model 호출 전 차단                | `stopped`                      |
+| 날씨 조회 실패            | 별도 재시도 없음 | 기본 코스 Tool 후보로 복귀             | 코스 처리 계속 또는 후속 오류    |
+| 예약 변경                 | 자동 재시도 없음 | 로그인·세션·TTL·상태 재검증         | 승인/취소/만료/거절 상태         |
+| 금지 요청                 |              0회 | Provider 이전 정책 차단                | `rejected`                     |
+
+예약처럼 상태를 변경하는 Tool을 자동 재시도하지 않고, 조회 timeout만 제한적으로 재시도하는 정책은 중복 변경 위험을 줄인다. 다만 현재 구현은 오류 원인을 모델이 분석해 다른 Tool로 전환하거나 프롬프트를 자동 조정하는 일반화된 대체 전략은 제공하지 않는다.
+
+## 6. 오류 감지부터 재검증까지의 입출력
+
+### 6.1 필수 파라미터 누락
+
+- 입력: 예약 또는 조회에 필요한 필수값이 없는 Tool arguments
+- 감지: strict Pydantic schema 검증 실패
+- 원인: 필수 필드 누락 또는 타입 불일치
+- 수정 전략: Tool을 실행하지 않고 보완 질문 반환
+- 재실행: 사용자가 필수값을 제공한 새 요청에서만 가능
+- 검증 출력: `needs_clarification`, Tool 실행 기록 없음
+
+### 6.2 MCP timeout
+
+- 입력: 허용된 조회 Tool과 유효한 arguments
+- 감지: `asyncio.wait_for` 제한시간 초과
+- 원인: MCP 서버 지연, 미기동 또는 통신 장애
+- 수정 전략: 같은 요청을 1회 재시도
+- 재실행: 최초 호출 포함 최대 2회
+- 검증 출력: 성공 Tool 결과 또는 `MCP_TIMEOUT` 기반 `error`
+
+### 6.3 반복 호출
+
+- 입력: 같은 Tool과 같은 정규화 arguments의 반복 호출
+- 감지: `repeat_counts`가 허용 횟수에 도달
+- 원인: Provider가 동일 행동을 반복 선택
+- 수정 전략: 다음 Tool 실행 차단
+- 재실행: 없음
+- 검증 출력: `stopped`, `repeat_limit_reached`, 제한 Trace
+
+### 6.4 예약 승인
+
+- 입력: 예약 제안과 이후 confirm/cancel 요청
+- 감지: 로그인, 인증 세션, action 소유 세션, TTL, 현재 상태 검사
+- 원인: 미인증, 타 세션 action, 만료 또는 중복 결정
+- 수정 전략: 변경 Tool을 재시도하지 않고 안전하게 거절
+- 재실행: 유효한 새 action을 생성한 경우에만 가능
+- 검증 출력: `pending`, `processing`, `completed`, `cancelled`, `expired` 중 실제 상태
+
+## 7. 프롬프트와 파라미터 조정 이력
+
+Git 이력 기반 버전별 성능 비교 로그는 본 시험 범위에서 확인되지 않았다. 현재 소스에서 확인되는 조정 사항은 다음과 같다.
+
+| 대상            | 현재 조정 내용                                                                  | 확인 근거                             |
+| --------------- | ------------------------------------------------------------------------------- | ------------------------------------- |
+| Agent 지시문    | 검색·Tool 결과 없는 사실 추측 금지, 필수정보 질문, 예약 확인 전 완료 표현 금지 | Profile 및 Runtime 단위시험           |
+| OpenAI Provider | Tool schema 전달,`parallel_tool_calls=False`, Tool arguments JSON 해석        | Provider 단위시험                     |
+| Runtime         | 최대 6단계, 전체 90초, 금지 요청 선차단, 상태·종료 사유 구성                   | Runtime 단위시험                      |
+| Executor        | 동일 호출 최대 2회, 전체 Tool 최대 8회, MCP 재시도 1회                          | Executor 단위시험                     |
+| RAG             | 허용 collection, 검색 점수 임계값, 출처 메타데이터                              | RAG 단위시험 일부 통과, 통합시험 실패 |
+| 예약            | 로그인·세션 소유권·TTL·상태 전이, 변경 Tool 자동 재시도 금지                 | 예약 Runtime·Repository 시험         |
+
+프롬프트 문구의 변경 전후, temperature 등 생성 파라미터 변경 전후, 동일 입력 반복 결과를 연결하는 원본 로그가 없으므로 각 조정의 정량 개선 효과는 산출할 수 없다.
+
+## 8. 자기 성찰 적용 전후 비교
+
+| 지표                         |   적용 전 | 현재 구현 | 판정 근거                                                 |
+| ---------------------------- | --------: | --------: | --------------------------------------------------------- |
+| 태스크 완료율                | 측정 불가 | 측정 불가 | 동일 평가셋의 reflection off/on 실행 결과 없음            |
+| 도구 선택 정확도             | 측정 불가 | 측정 불가 | 실제 LLM Tool 선택 로그를 정답 라벨과 건별 집계하지 않음  |
+| 응답 일관성                  | 측정 불가 | 측정 불가 | 동일 입력 반복 및 Tool 원본 대비 최종 답변 비교 로그 없음 |
+| 평균 재시행 횟수             | 측정 불가 | 측정 불가 | 전체 시나리오별 재시행 횟수 집계 결과 없음                |
+| Agent 단위시험 통과율        | 해당 없음 |    100.0% | 93/93 통과                                                |
+| 분리 실행 자동화 시험 통과율 | 해당 없음 |     80.2% | 235/293 통과, FAIL 41·ERROR 17                           |
+
+정량 전후 비교를 위해서는 동일 commit과 동일 평가 시나리오를 대상으로 자기 성찰 비활성·활성 조건을 각각 여러 번 실행해야 한다. 각 `run_id`에 입력, Model 응답, 선택 Tool, arguments, Tool 결과, 최종 답변, 재시도 횟수, 종료 사유를 저장하고 동일 판정기로 평가해야 한다.
+
+## 9. 종합 판정과 개선 우선순위
+
+### 9.1 종합 판정
+
+**조건부 미통과**
+
+Agent 핵심 정책과 실행 제한은 93개 단위시험에서 모두 통과했다. 그러나 RAG-Agent 통합 계약 오류가 재현됐고, 현재 프로젝트 환경에서 Backend·persistent 저장소·Streamlit UI·실제 MCP 호출의 종단 검증이 완료되지 않았다. 따라서 단위 수준의 안전장치는 확인됐지만, Zoo Visit Guide 에이전트 전체를 운영 준비 완료로 판정할 수 없다.
+
+### 9.2 개선 우선순위
+
+1. `ToolExecutor`의 `rag_search` 비동기 계약과 통합시험 fixture를 일치시키고 RAG 3개 종단 시험을 모두 통과시킨다.
+2. 프로젝트 전용 가상환경을 만들고 루트·Backend·Frontend 요구사항을 일관되게 설치해 `psycopg_pool`, async pytest plugin, `extra_streamlit_components` 누락을 제거한다.
+3. PostgreSQL(pgvector)과 Redis를 정해진 포트로 기동한 뒤 seed, 예약 원자성, 세션·Trace TTL과 persistent E2E를 재실행한다.
+4. 실제 MCP 프로세스의 초기화 timeout 원인을 확인하고 Tool 목록 조회뿐 아니라 운영 Tool 3종 호출까지 검증한다.
+5. 명시적 자기 성찰을 평가하려면 off/on 플래그와 Trace 필드를 추가하고 동일 시나리오 반복 실행 결과를 보존한다.
+6. 전체 `pytest`가 수집 오류 없이 종료되고 평가 시나리오 원본 로그가 확보된 뒤 완료율, 도구 선택 정확도, 응답 일관성, 평균 재시행 횟수를 다시 산출한다.
+
+## 10. 재현 명령
+
+```powershell
+py -3.12 -m pytest -q --disable-warnings --maxfail=0
+py -3.12 -m pytest tests/agent -q
+py -3.12 -m pytest tests/data -q --maxfail=0
+py -3.12 -m pytest tests/integration -q --maxfail=0
+```
+
+환경 의존 시험은 프로젝트 요구사항을 설치한 전용 가상환경과 PostgreSQL·Redis·MCP 프로세스가 준비된 상태에서 다시 실행해야 한다.
