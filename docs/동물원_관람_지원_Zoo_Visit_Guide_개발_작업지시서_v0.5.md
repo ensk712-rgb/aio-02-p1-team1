@@ -1,15 +1,11 @@
-# Zoo Visit Guide — 팀별 개발 작업지시서 v4
+# 동물원 관람 지원(Zoo Visit Guide) 개발 작업지시서 v0.5
 
-작성일: 2026-09-08 · 대상: 손영민 / 최두나 / 이원민 / 이준서 · 목적: 회의 결과를 반영한 PostgreSQL 기반 AI Agent 시연과 충돌을 줄이는 분담 개발 · 공통 Python: 3.12.7
+작성일: 2026-09-09 · 대상: 손영민 / 최두나 / 이원민  · 목적: 회의 결과를 반영한 PostgreSQL 기반 AI Agent 시연과 충돌을 줄이는 분담 개발 · 공통 Python: 3.12.7
 
-> 이 문서는 v3를 보존한 상태에서 2026-09-08 회의의 DB 마이그레이션, 동물정보 100건, 신규 프론트 화면, 팀원 추가, 예약 승인·취소 참조 데이터 요구를 반영한 작업 계약이다. 기존 v3는 이력으로 보존한다.
+## 0. 문서 작성 관리 정책
 
-## 0. 문서 기준과 읽는 순서
-
-- 기능·안전·완료 기준: 프로젝트의 `동물원_관람_지원(Zoo_Visit_Guide)_AI_에이전트_개발_계획서_v0.4.md`.
-- 충돌 시 기준: 2026-09-08 회의에서 확정한 변경사항은 이 v4를 우선한다. 그 밖의 기능·정책은 개발계획서 v0.4를 따르고, 명시되지 않은 구현 방법·담당 경계는 이 문서로 확정한다. 예약은 Backend 로컬 변경 Tool, MCP는 조회 Tool 전용으로 분리한다.
-
-읽는 순서: 전원 1~6장 → 본인의 8장 작업표 → 7장·9장 병합 규칙 → 10장 시험 기준. P1 작업을 시작할 때 11장을 읽는다.
+- 기능·안전·완료 기준: 프로젝트의 `동물원_관람_지원_Zoo_Visit_Guide__에이전트_아키텍처_설계서_v0.5.md`.
+- 충돌 시 기준: 2026-09-09 회의에서 확정한 변경사항은 이 문서를 우선한다. 그 밖의 기능·정책은 개발계획서를 따르고, 명시되지 않은 구현 방법·담당 경계는 이 문서로 확정한다. 예약은 Backend 로컬 변경 Tool, MCP는 조회 Tool 전용으로 분리한다.
 
 ### 용어
 
@@ -27,7 +23,7 @@
 
 관람객의 질문에 동물 정보 문서를 검색하거나 먹이시간·휴장·경로 Tool을 호출하여, 확인한 근거를 포함한 답변을 제공한다. 학습 목표는 **LLM의 판단과 Backend의 실행 통제를 분리하고, Tool 결과를 관찰한 재판단을 Trace로 설명하는 것**이다.
 
-### 1.1 P0: 처음 완성할 제품
+### 1.1 P0: MVP
 
 - 단일 `zoo_guide` Agent Profile과 순수 Python Runtime.
 - 기존 JSON 형식 동물정보 100건을 PostgreSQL 테이블에 적재하고 pgvector 인덱스·RAG 검색 근거로 사용한다. 카드 목록 등 부속 데이터도 테이블 적재 대상을 명시한다.
@@ -37,17 +33,18 @@
 - 응답 Trace와 관리자 전용 Trace 조회 API.
 - Mock Provider로 반복 가능한 시험, 실제 OpenAI Provider로 Agent 판단 시연. 운영 데이터는 두 모드 모두 Mock이다.
 
-### 1.2 P1과 추가 선택 기능
+### 1.2 P1/P2: 추가 선택 기능
 
 | 구분               | 기능                                                                             | 시작 조건                      |
 | ------------------ | -------------------------------------------------------------------------------- | ------------------------------ |
 | P1-A               | Mock 예약 + 사용자 승인·소유권·동시 확인 방지                                  | P0 통합 시험 완료              |
 | P1-B               | 최근 대화 Memory, 티켓·날씨, 아이 동반·시간·이동 조건을 반영한 코스           | P0 완료, 해당 계약 추가 후     |
+| P2                 | PostgreSQL 예약 영속화, Vision 이미지 분석, 관리자 Trace UX, STT/TTS, 화면 확장  | P1 회귀 시험 완료 후 별도 검증 |
 | 필수 DB 전환       | JSON 100건 → PostgreSQL 적재 → pgvector/RAG 생성                               | 최두나 DB 마이그레이션 완료 후 |
 | 선택 확장          | Redis, 문서 업로드, SSE, STT/TTS                                                 | P0를 유지하며 별도 PR로 구현   |
 | 이번 작업에서 제외 | 실제 예약/결제/환불, 장기 개인정보 저장, 다중 Agent, 상용 배포, 완전한 영상 분석 | 구현하지 않음                  |
 
-기본 와이어프레임과 기존 화면 시험은 완료된 기준선으로 유지한다. 사용자용 추가 정보 화면과 관리자 대시보드·로그 분석·이력 조회 화면은 이준서가 신규 구현한다. 작업 중 화면 요구로 필요한 DB 테이블은 이준서가 제안·추가할 수 있으나, migration 파일과 Schema 계약을 PR에 기록하고 최두나의 데이터 마이그레이션과 충돌 여부를 함께 검토한다. 이미지 인식은 별도 범위다.
+기본 와이어프레임과 기존 화면 시험은 완료된 기준선으로 유지한다. `origin/test`의 병합 이력에서 확인된 사용자 정보 화면과 관리자 Trace 화면은 이원민·손영민의 P2, 이미지 인식과 그 API는 최두나의 P2로 기록한다. 화면 요구로 필요한 DB 테이블은 최두나가 migration과 Schema 계약을 관리한다.
 
 ## 2. 시스템 아키텍처와 사용 흐름
 
@@ -65,7 +62,7 @@ FastAPI :8000 (worker 1개)
           ├─ retrieve_animal_info → RAG Service → PostgreSQL + pgvector
           └─ 운영 조회 Tool → MCP Client
                                 → Streamable HTTP /mcp
-                                → MCP Server :8010
+                                → MCP Server :8100
                                 → 순수 Python 조회 함수 + PostgreSQL 참조 데이터
       ← 표준 Tool 결과를 Provider에 재전달
       → 다음 행동 또는 최종 답변
@@ -325,12 +322,12 @@ Provider에 환경변수 전체·토큰·임의 로컬 파일을 전달하지 �
 
 ## 6. 디렉토리와 파일 소유권
 
-소유자 표기: `[손]` 손영민, `[최]` 최두나, `[이]` 이원민, `[준]` 이준서. **같은 폴더라도 파일별로 소유권이 다를 수 있다.** 폴더 전체 포맷 변경을 하지 않는다.
+소유자 표기: `[손]` 손영민, `[최]` 최두나, `[이]` 이원민. **같은 폴더라도 파일별로 소유권이 다를 수 있다.** 폴더 전체 포맷 변경을 하지 않는다.
 
 ```text
 team2/                              # 현재 프로젝트 폴더를 저장소 루트로 사용
 ├─ README.md                        [최] 실행 안내·P0 평가 결과
-├─ requirements.txt                 [최] 네 담당 의존성 파일을 -r로 포함
+├─ requirements.txt                 [최] 세 담당 의존성 파일을 -r로 포함
 ├─ pytest.ini                       [손] 테스트 경로·marker
 ├─ .gitignore                       [손] .venv/.env/cache/generated treports 제외
 ├─ .env.example                     [최] 값 없는 키 목록·안전한 기본 설정
@@ -354,7 +351,7 @@ team2/                              # 현재 프로젝트 폴더를 저장소 �
 │     │  └─ admin_router.py         [이] Trace 조회만
 │     ├─ services/
 │     │  ├─ agent_orchestration_service.py [손]
-│     │  ├─ approval_service.py     [손/P1]
+│     │  ├─ approval_service.py     [손]
 │     │  ├─ rag_service.py          [최]
 │     │  └─ eval_service.py         [최]
 │     ├─ tools/                     registry.py·executor.py [손], zoo_tools.py [최]
@@ -363,18 +360,17 @@ team2/                              # 현재 프로젝트 폴더를 저장소 �
 │     └─ mcp_client/                [이] client.py
 ├─ mcp_server/
 │  └─ requirements.txt              [이] server.py, tools/zoo_read.py
-├─ frontend/                        [이] 기존 app.py·Client·기본 화면, [준] 신규 정보 화면
-│  ├─ app_pages/                    [이] 기존 화면, [준] 신규 사용자 정보 화면
-│  ├─ components/                   [이] 기존 공통/채팅/예약 카드, [준] 신규 화면 전용 컴포넌트
+├─ frontend/                        [이] app.py·Client·관람객 화면
+│  ├─ app_pages/                    [이] 사용자 정보·지도·코스·음성·이미지 화면
+│  ├─ components/                   [이] 공통/채팅/예약/경로 지도 컴포넌트
 │  └─ image/                        [이] 로컬 화면용 jpg/png/pdf 자산
-├─ frontend_admin/                  [이] 기존 인증/API Client, [준] 대시보드·로그·이력 화면
+├─ frontend_admin/                  [이] 인증·예약·관리자 화면, [손] Trace 조회 UX 보강
 ├─ data/                            [최] animal_cards/, operations/, references/
 ├─ migrations/                      [최] PostgreSQL 테이블·seed·pgvector migration
 ├─ tests/
 │  ├─ agent/                        [손] Runtime·정책·Schema·ask·P1 승인
 │  ├─ data/                         [최] DB migration·RAG·저장소·평가
 │  ├─ ui_mcp/                       [이] MCP·HTTP Client·health·admin API
-│  ├─ ui_new/                       [준] 신규 사용자/관리자 화면
 │  └─ integration/                  rag_agent [최], mcp_agent·e2e_ui [이], policy [손]
 ├─ eval/
 │  ├─ run.py                        [최] 평가 실행 진입점
@@ -383,16 +379,15 @@ team2/                              # 현재 프로젝트 폴더를 저장소 �
 │     ├─ rag.json                   [최] 검색·근거
 │     └─ mcp.json                   [이] 운영 Tool·MCP 장애
 └─ docs/
-   ├─ Zoo_Visit_Guide_팀별_개발_작업지시서_v4.md
-   ├─ 동물원_관람_지원(Zoo_Visit_Guide)_AI_에이전트_개발_계획서_v0.4.md                               
+   ├─ Zoo_Visit_Guide_팀별_개발_작업지시서_v5.md
+   ├─ 동물원_관람_지원_Zoo_Visit_Guide__에이전트_아키텍처_설계서_v0.5.md                           
    └─ reports/
 ```
 
-- `README.md`는 한 사람의 전체 통합 보고서가 아니다. 각 담당자가 자신의 실행 명령·제한사항을 제안하고, P0 최종 병합 때 네 명이 합의한 내용만 최두나가 한 번에 반영한다. 최두나는 평가 결과를 취합할 뿐, 다른 담당 영역의 결함을 혼자 해결하는 책임을 지지 않는다.
+- `README.md`는 한 사람의 전체 통합 보고서가 아니다. 각 담당자가 자신의 실행 명령·제한사항을 제안하고, P0 최종 병합 때 세 명이 합의한 내용만 최두나가 한 번에 반영한다. 최두나는 평가 결과를 취합할 뿐, 다른 담당 영역의 결함을 혼자 해결하는 책임을 지지 않는다.
 - 패키지의 빈 `__init__.py`는 해당 폴더 담당자가 만들고 이후 export 목록을 모으지 않는다. 루트 `backend/__init__.py`, `backend/app/__init__.py`는 손영민 소유다.
-- 테스트 공용 `conftest.py`는 처음부터 만들지 않는다. 각 담당 폴더 안에 자신의 fixture를 둔다. 공유가 필요하면 공동 계약 회의 후 손영민이 파일을 만들고, 네 명이 소비 계약을 검토한다.
+- 테스트 공용 `conftest.py`는 처음부터 만들지 않는다. 각 담당 폴더 안에 자신의 fixture를 둔다. 공유가 필요하면 공동 계약 회의 후 손영민이 파일을 만들고, 세 명이 소비 계약을 검토한다.
 - 원본 운영 JSON과 공통 migration은 최두나가 소유한다. 장애 시험용 Fake와 데이터는 각자의 테스트 폴더에 둔다. 실제 시연 데이터를 고쳐 timeout을 흉내 내지 않는다.
-- 이준서는 신규 화면에 필요한 DB를 추가할 권한이 있다. 단, 기존 테이블을 직접 재정의하지 않고 새 migration을 만들며 목적·컬럼·API 소비처·rollback을 PR에 기록하고 최두나와 충돌 여부를 확인한다.
 - 이 문서 이후 새 파일도 PR 설명에 소유자를 기록한다. 위 표에 없는 공통 파일을 임의로 두 사람이 만들지 않는다.
 
 ## 7. 착수·빌드·병합 순서
@@ -401,27 +396,28 @@ team2/                              # 현재 프로젝트 폴더를 저장소 �
 
 이 단계가 끝나기 전에는 서로 다른 Schema를 가정하고 기능을 길게 개발하지 않는다.
 
-| 순서 | 작업                                                                               | 담당                                     | 완료 증거                                              |
-| ---- | ---------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
-| G0-1 | 공통 Schema, Profile, Provider Protocol, Runtime/Executor 함수 선언, pytest marker | 손영민                                   | 입력/응답 JSON을 Pydantic으로 검증, 공통 패키지 import |
-| G0-2 | Settings,`.env.example`, PostgreSQL Schema/migration, Repository/RAG 함수 선언   | 최두나                                   | JSON 100건 검증·DB 적재·모델 생성 시험               |
-| G0-3 | MCP Client·Server 함수 선언, 프론트 Client, health/admin Router                   | 이원민                                   | MCP 기동과 Router import                               |
-| G0-4 | Python 3.12.7 가상환경·공통 requirements 확인                                     | 최두나                                   | 네 담당자의 같은 버전 설치·import 기록                |
-| G0-5 | main.py에 각 Router와 의존성을 조립                                                | 손영민 작성, 최두나·이원민·이준서 검토 | Backend health 확인, 전원 같은 Schema import           |
+| 순서 | 작업                                                                               | 담당                             | 완료 증거                                              |
+| ---- | ---------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------ |
+| G0-1 | 공통 Schema, Profile, Provider Protocol, Runtime/Executor 함수 선언, pytest marker | 손영민                           | 입력/응답 JSON을 Pydantic으로 검증, 공통 패키지 import |
+| G0-2 | Settings,`.env.example`, PostgreSQL Schema/migration, Repository/RAG 함수 선언   | 최두나                           | JSON 100건 검증·DB 적재·모델 생성 시험               |
+| G0-3 | MCP Client·Server 함수 선언, 프론트 Client, health/admin Router                   | 이원민                           | MCP 기동과 Router import                               |
+| G0-4 | Python 3.12.7 가상환경·공통 requirements 확인                                     | 최두나                           | 세 담당자의 같은 버전 설치·import 기록                |
+| G0-5 | main.py에 각 Router와 의존성을 조립                                                | 손영민 작성, 최두나·이원민 검토 | Backend health 확인, 전원 같은 Schema import           |
 
 G0-2/G0-3은 G0-1 병합 후 각자 진행한다. G0-5는 각 Router와 의존성의 계약이 확정된 뒤에만 작성한다. stub은 명시적으로 미구현을 알리고 성공을 위장하지 않는다. Stub 기반 화면 시험은 테스트에서 Fake 응답을 주입한다.
 
-**Gate 0 완료 조건:** 네 명 모두 main 최신 상태에서 모듈 import·공통 계약 시험 성공, DB migration·데이터 키·함수 인자·상태값 확인. 이 상태를 기준으로 기능 브랜치를 만든다.
+**Gate 0 완료 조건:** 세 명 모두 main 최신 상태에서 모듈 import·공통 계약 시험 성공, DB migration·데이터 키·함수 인자·상태값 확인. 이 상태를 기준으로 기능 브랜치를 만든다.
 
 ### 7.2 기능 개발과 통합
 
-| 단계          | 손영민                              | 최두나                                   | 이원민                                | 이준서                               | 공동 통합 책임                              | 병합 조건                       |
-| ------------- | ----------------------------------- | ---------------------------------------- | ------------------------------------- | ------------------------------------ | ------------------------------------------- | ------------------------------- |
-| G1 개별 구현  | Profile/정책, Scripted Mock Runtime | DB migration·100건 적재·RAG/저장소     | MCP wrapper/client, 기존 화면         | 신규 화면 설계·Fake 응답 화면       | 각자 자기 모듈 단위 시험                    | 각자 단위 시험·계약 준수       |
-| G2 연결       | Runtime에서 RAG/MCP 의존성 사용     | PostgreSQL/pgvector ↔ Runtime 연결 주관 | MCP ↔ Runtime 및 기존 Streamlit 연결 | 신규 사용자/관리자 화면 ↔ API 연결  | DB/RAG: 최+손 / MCP: 이+손 / 신규 UI: 준+이 | 대표 API·화면 통과             |
-| G3 실제 판단  | OpenAI Provider 연결, 결과 재전달   | 대표 질의 검색 품질 확인                 | 기존 응답 화면·실행 안내             | 신규 화면 실데이터 표시              | 전원이 Trace·화면 검증                     | 실제 LLM Trace와 DB 근거 증명   |
-| G4 안전·평가 | 반복·권한·오류 Case 수정          | 평가 실행·DB 대조 결과 취합             | MCP 중단·인증·기존 UI 오류          | 신규 UI·관리자 권한·빈 데이터 시험 | 최가 최종 결과 취합, 전원이 자기 Case 재현  | Case 통과 또는 미통과 사유 명시 |
-| P1            | 승인 상태 전이·코스 로직           | 예약 정책 DB·Pending/예약/Memory        | 승인 API/기존 카드                    | 예약 정책·로그·이력 화면           | 승인: 손+최+이+준                           | P0 회귀 유지, P1 전용 시험      |
+| 단계          | 손영민                              | 최두나                                   | 이원민                                 | 공동 통합 책임                             | 병합 조건                       |
+| ------------- | ----------------------------------- | ---------------------------------------- | -------------------------------------- | ------------------------------------------ | ------------------------------- |
+| G1 개별 구현  | Profile/정책, Scripted Mock Runtime | DB migration·100건 적재·RAG/저장소     | MCP wrapper/client, 기존 화면          | 각자 자기 모듈 단위 시험                   | 각자 단위 시험·계약 준수       |
+| G2 연결       | Runtime에서 RAG/MCP 의존성 사용     | PostgreSQL/pgvector ↔ Runtime 연결 주관 | MCP ↔ Runtime 및 Streamlit 연결       | DB/RAG: 최+손 / MCP·UI: 이+손             | 대표 API·화면 통과             |
+| G3 실제 판단  | OpenAI Provider 연결, 결과 재전달   | 대표 질의 검색 품질 확인                 | 응답 화면·실행 안내                   | 전원이 Trace·화면 검증                    | 실제 LLM Trace와 DB 근거 증명   |
+| G4 안전·평가 | 반복·권한·오류 Case 수정          | 평가 실행·DB 대조 결과 취합             | MCP 중단·인증·UI 오류                | 최가 최종 결과 취합, 전원이 자기 Case 재현 | Case 통과 또는 미통과 사유 명시 |
+| P1            | 승인 상태 전이·코스 로직           | 예약 정책 DB·Pending/예약/Memory        | 승인 API/기존 카드                     | 승인: 손+최+이                             | P0 회귀 유지, P1 전용 시험      |
+| P2            | Trace UX·STT/TTS·RAG 오류 보강    | 예약 영속화·Vision API                  | 사용자 화면·지도·음성/이미지 UI 확장 | 기능별 소유자가 API/UI 연결 시험           | P1 회귀 유지, P2 전용 시험      |
 
 G1에서는 상대 구현 대신 **테스트용** Fake를 사용한다. 예: 손영민은 FakeMcpClient/FakeRagService, 최두나는 Provider 없는 검색 테스트, 이원민은 고정 AgentAskResponse로 화면을 만든다. G2부터 실제 연결로 교체한다. 최종 시연에 FakeMcpClient가 남으면 MCP 통과로 인정하지 않는다.
 
@@ -429,16 +425,16 @@ G1에서는 상대 구현 대신 **테스트용** Fake를 사용한다. 예: 손
 
 통합은 코드 한 파일을 누가 편집하는지와 전체 흐름을 누가 검증하는지를 분리한다. `main.py`의 파일 소유자는 손영민이지만, 각 연결의 통과 책임은 아래 두 명 이상에게 있다.
 
-| 연결 범위                     | 작성/수정 파일 소유자          | 연결 시험 주관 | 함께 확인할 사람       | 통과 기준                                                    |
-| ----------------------------- | ------------------------------ | -------------- | ---------------------- | ------------------------------------------------------------ |
-| RAG → Runtime → ask API     | 손영민·최두나                 | 최두나         | 손영민                 | N-01, A-01, A-11의 출처·점수·상태 일치                     |
-| MCP → Executor → Runtime    | 이원민·손영민                 | 이원민         | 손영민                 | N-02~04, A-03, A-14의 실제 MCP 호출·오류 처리               |
-| Backend API → Streamlit      | 이원민·손영민                 | 이원민         | 손영민                 | 질문·출처·Tool 카드·오류 화면 표시                        |
-| 신규 화면 → Backend API      | 이준서·이원민                 | 이준서         | 손영민·최두나         | 사용자 정보·대시보드·로그·이력의 권한/빈 상태             |
-| PostgreSQL → pgvector → RAG | 최두나·손영민                 | 최두나         | 손영민                 | JSON 100건 대조, 벡터 생성, 대표 검색 근거 일치              |
-| 공통 Settings·데이터·환경   | 최두나                         | 최두나         | 손영민·이원민·이준서 | Python 3.12.7과 같은 DB 데이터로 기동                        |
-| 최종 P0 평가·보고            | 최두나                         | 최두나         | 손영민·이원민·이준서 | 전원 Case의 실제 결과·Trace·미통과 사유 취합               |
-| P1 승인 흐름                  | 손영민·최두나·이원민·이준서 | 손영민         | 최두나·이원민·이준서 | 승인 전 0건, 승인 후 1건, 정책 근거·만료·소유권·중복 차단 |
+| 연결 범위                     | 작성/수정 파일 소유자  | 연결 시험 주관 | 함께 확인할 사람 | 통과 기준                                                    |
+| ----------------------------- | ---------------------- | -------------- | ---------------- | ------------------------------------------------------------ |
+| RAG → Runtime → ask API     | 손영민·최두나         | 최두나         | 손영민           | N-01, A-01, A-11의 출처·점수·상태 일치                     |
+| MCP → Executor → Runtime    | 이원민·손영민         | 이원민         | 손영민           | N-02~04, A-03, A-14의 실제 MCP 호출·오류 처리               |
+| Backend API → Streamlit      | 이원민·손영민         | 이원민         | 손영민           | 질문·출처·Tool 카드·오류 화면 표시                        |
+| 확장 화면 → Backend API      | 이원민·손영민·최두나 | 이원민         | 손영민·최두나   | 사용자 정보·Trace·음성·이미지의 정상/빈/오류/권한 상태    |
+| PostgreSQL → pgvector → RAG | 최두나·손영민         | 최두나         | 손영민           | JSON 100건 대조, 벡터 생성, 대표 검색 근거 일치              |
+| 공통 Settings·데이터·환경   | 최두나                 | 최두나         | 손영민·이원민   | Python 3.12.7과 같은 DB 데이터로 기동                        |
+| 최종 P0 평가·보고            | 최두나                 | 최두나         | 손영민·이원민   | 전원 Case의 실제 결과·Trace·미통과 사유 취합               |
+| P1 승인 흐름                  | 손영민·최두나·이원민 | 손영민         | 최두나·이원민   | 승인 전 0건, 승인 후 1건, 정책 근거·만료·소유권·중복 차단 |
 
 연결 시험이 실패하면 주관자는 처음 실패한 Trace를 기록하고, 해당 파일 소유자가 수정한다. 주관자가 상대 파일을 직접 수정하지 않는다.
 
@@ -446,15 +442,18 @@ G1에서는 상대 구현 대신 **테스트용** Fake를 사용한다. 예: 손
 
 ### 8.1 손영민 — Agent Runtime·정책·Agent API
 
-| 순서   | 할 일                            | 산출물                                      | 확인 방법                            |
-| ------ | -------------------------------- | ------------------------------------------- | ------------------------------------ |
-| S1     | 3~5장 공통 모델과 Profile 구현   | schemas, agents/models·registry            | 유효/누락/추가 필드 테스트           |
-| S2     | 정책 Registry·Executor 구현     | tools/registry·executor                    | 잘못된 인자·금지 이름은 실행 0회    |
-| S3     | Scripted Mock Provider와 Runtime | providers/mock_provider, runtime            | Tool 결과 전달 후 다음 턴, 종료 한도 |
-| S4     | ask 조립과 Agent Router 구현     | service, agent_router                       | Fake 의존성으로 ask HTTP 시험        |
-| S5     | 수업 Provider를 어댑터로 적용    | openai_provider                             | 실제 Model Tool 선택·재판단 Trace   |
-| S6     | 공격·반복·오류 시험            | tests/agent, integration/policy, agent.json | A-02/04/05/09~13                     |
-| S7(P1) | 승인 상태기계·예약 제어         | approval_service, confirm                   | 승인 전 0건·후 1건                  |
+| 순서    | 할 일                            | 산출물                                         | 확인 방법                             |
+| ------- | -------------------------------- | ---------------------------------------------- | ------------------------------------- |
+| S1      | 3~5장 공통 모델과 Profile 구현   | schemas, agents/models·registry               | 유효/누락/추가 필드 테스트            |
+| S2      | 정책 Registry·Executor 구현     | tools/registry·executor                       | 잘못된 인자·금지 이름은 실행 0회     |
+| S3      | Scripted Mock Provider와 Runtime | providers/mock_provider, runtime               | Tool 결과 전달 후 다음 턴, 종료 한도  |
+| S4      | ask 조립과 Agent Router 구현     | service, agent_router                          | Fake 의존성으로 ask HTTP 시험         |
+| S5      | 수업 Provider를 어댑터로 적용    | openai_provider                                | 실제 Model Tool 선택·재판단 Trace    |
+| S6      | 공격·반복·오류 시험            | tests/agent, integration/policy, agent.json    | A-02/04/05/09~13                      |
+| S7(P1)  | 승인 상태기계·예약 제어         | approval_service, confirm                      | 승인 전 0건·후 1건                   |
+| S8(P2)  | 영속 RAG 검색·프론트 예외 보강  | document_repository, executor, home            | 저장소 장애와 UI 예외 회귀 시험       |
+| S9(P2)  | 관리자 Agent Trace 조회 UX 개선  | trace_repository, admin_router, frontend_admin | 관리자 세션·필터·상세 Trace 시험    |
+| S10(P2) | 음성 전사·안내 응답·TTS 연결   | Web Speech API, voice_assistant                | STT→Agent→TTS 흐름과 실패 격리 시험 |
 
 받는 것: 최두나의 RAG·운영 조회 함수·Repository/Settings, 이원민의 MCP Client/Router. 넘기는 것: Schema·Profile·AgentAskResponse. `main.py`는 손영민이 조립하되, 최두나·이원민이 연결 계약을 검토한다. **이원민의 MCP Client와 최두나의 Repository·운영 조회 함수 내부를 직접 수정하지 않는다.**
 
@@ -466,8 +465,8 @@ G1에서는 상대 구현 대신 **테스트용** Fake를 사용한다. 예: 손
 - 예약은 Backend 로컬 변경 Tool로만 실행한다. MCP Server에는 예약 Tool이나 예약 Bridge를 등록하지 않는다. MCP는 먹이시간·휴장·경로 등 조회 Tool만 제공한다.
 - 변경 Tool은 승인 전 실행 금지, 서버 저장 Snapshot만 실행, 120초 만료, 세션 소유권, 원자적 `pending→processing`, 멱등키, 승인 시 정원 재확인 규칙을 따른다.
 - 사용자의 `confirm/cancel`은 실행 승인 또는 취소이며, 관리자 업무 판정 `approve/reject`와 구분한다. 취소·만료·거절·정원 부족 상태를 성공으로 표시하지 않는다.
-- 에버랜드 드림투어 예약·취소 안내는 그대로 실행 규칙으로 하드코딩하지 않는다. 최두나가 출처와 확인일을 포함해 `reservation_policy_references`에 적재하고, 조회 Tool은 활성 버전만 근거로 반환한다. 참조 정책이 없거나 만료·비활성 상태면 임의로 승인/취소 가능 여부를 답하지 않는다.
-- 이원민은 승인 API·기존 Client 계약을, 이준서는 사용자 승인/취소 안내와 관리자 정책·이력 화면을 담당한다. 두 사람 모두 손영민이 제공한 상태 전이 계약을 변경하지 않는다.
+- 예약·취소 안내는 그대로 실행 규칙으로 하드코딩하지 않는다. 최두나가 출처와 확인일을 포함해 `reservation_policy_references`에 적재하고, 조회 Tool은 활성 버전만 근거로 반환한다. 참조 정책이 없거나 만료·비활성 상태면 임의로 승인/취소 가능 여부를 답하지 않는다.
+- 이원민은 승인 API·Client와 사용자 승인/취소 화면을 담당한다. 이원민은 손영민이 제공한 상태 전이 계약을 변경하지 않는다.
 
 ### 8.2 최두나 — RAG·데이터·저장소·평가
 
@@ -480,26 +479,32 @@ G1에서는 상대 구현 대신 **테스트용** Fake를 사용한다. 예: 손
 | C5     | 시나리오 파일을 읽는 평가기                          | eval_service, eval/run.py                    | 실제 API 기대 상태·Tool 비교                                  |
 | C6     | 각자 시험 결과 취합                                  | docs/reports/choi.md                         | 전체 실행 수·PASS/FAIL/SKIP 구분                              |
 | C7(P1) | 드림투어 참조 정책·Pending/예약/대화 저장소         | migration, policy/approval Repository        | 출처·버전, 원자적 claim, 정원·멱등성·세션 격리              |
+| C8(P2) | 예약·Pending Action PostgreSQL 영속화               | db, pending_action/reservation_repository    | 재기동 후 상태·원자적 claim·멱등성 E2E                       |
+| C9(P2) | 동물 이미지 Vision 분석 API                          | vision_service, tools_router                 | 파일 검증·Provider 오류·분석 응답 계약                       |
 
 받는 것: 손영민의 공통 모델, 세 팀원의 시나리오와 시험 결과. 넘기는 것: 검색 함수·운영 조회 함수·데이터·Repository. G2에서는 손영민과 RAG 연결을 함께 검증한다. 평가 취합은 다른 사람의 테스트 파일을 직접 편집한다는 뜻이 아니다.
 
 첫 작업: `docs/plans/choi.md`에 C1~C7, JSON 100건 목록, migration/rollback 순서를 작성한다. PostgreSQL 적재 대조 후 pgvector/RAG를 생성하며, Redis는 선택 확장으로 둔다.
 
+`origin/test` 병합 이력 기준 P2 근거는 `91bba5c`(Vision 이미지 분석)와 `8cb9e6c`(예약·Pending Action PostgreSQL 영속화)이다. `9abbc07`과 `0ed9044`의 PostgreSQL/pgvector·티켓·코스 구현은 P1 완료 근거로 유지한다.
+
 ### 8.3 이원민 — MCP·프론트·조회 API 연결
 
-| 순서   | 할 일                                  | 산출물                                           | 확인 방법                                    |
-| ------ | -------------------------------------- | ------------------------------------------------ | -------------------------------------------- |
-| L1     | 수업의 HTTP MCP 연결을 동물원에 적용   | MCP Server/Client                                | tools/list의 이름·입력 Schema               |
-| L2     | 순수 운영 함수를 wrapper로 등록        | mcp_server/tools/zoo_read                        | tools/call 3종 결과 계약                     |
-| L3     | 기본 채팅·출처·Tool 카드             | frontend                                         | Fake 응답으로 상태별 렌더링                  |
-| L4     | Backend health/admin Trace Router      | routers, auth                                    | 관리자 토큰 미제공 차단                      |
-| L5     | 실제 ask와 UI 연결                     | agent_client, frontend                           | N-01~N-04 화면 시연                          |
-| L6     | MCP 장애·결과 변환·UI 오류           | tests/ui_mcp, mcp.json                           | A-03/14, 실패를 성공으로 표시하지 않음       |
-| L7(P1) | 승인 API·기존 카드 Client 계약 유지   | frontend/confirm client                          | 120초 만료·서버 판정 표시                   |
-| L8     | 사용자·관리자 최소 로그인과 권한 분리 | auth Router/Repository, frontend, frontend_admin | 일반 사용자로 관리자 API 접근 시 403         |
-| L9     | 관리자 Trace 조회 화면                 | frontend_admin, agent_client                     | 관리자 세션으로 Trace 조회·일반 사용자 차단 |
+| 순서    | 할 일                                      | 산출물                                           | 확인 방법                                    |
+| ------- | ------------------------------------------ | ------------------------------------------------ | -------------------------------------------- |
+| L1      | 수업의 HTTP MCP 연결을 동물원에 적용       | MCP Server/Client                                | tools/list의 이름·입력 Schema               |
+| L2      | 순수 운영 함수를 wrapper로 등록            | mcp_server/tools/zoo_read                        | tools/call 3종 결과 계약                     |
+| L3      | 기본 채팅·출처·Tool 카드                 | frontend                                         | Fake 응답으로 상태별 렌더링                  |
+| L4      | Backend health/admin Trace Router          | routers, auth                                    | 관리자 토큰 미제공 차단                      |
+| L5      | 실제 ask와 UI 연결                         | agent_client, frontend                           | N-01~N-04 화면 시연                          |
+| L6      | MCP 장애·결과 변환·UI 오류               | tests/ui_mcp, mcp.json                           | A-03/14, 실패를 성공으로 표시하지 않음       |
+| L7(P1)  | 승인 API·기존 카드 Client 계약 유지       | frontend/confirm client                          | 120초 만료·서버 판정 표시                   |
+| L8      | 사용자·관리자 최소 로그인과 권한 분리     | auth Router/Repository, frontend, frontend_admin | 일반 사용자로 관리자 API 접근 시 403         |
+| L9      | 관리자 Trace 조회 화면                     | frontend_admin, agent_client                     | 관리자 세션으로 Trace 조회·일반 사용자 차단 |
+| L10(P2) | 관람객 정보 화면과 지도·코스 UX 확장      | app_pages, route_map, styles                     | 페이지 이동·경로 렌더링·빈/오류 상태 시험  |
+| L11(P2) | 공지·환불·환경·음성·이미지 UI/API 연결 | app_pages, bootstrap, agent_client               | Backend 계약 재사용·기능별 실패 격리 시험   |
 
-받는 것: 손영민의 모델·조회 함수·응답·예약 변경 Tool 계약, 최두나의 DB/Trace Repository. 넘기는 것: MCP Client·Server·기존 화면·Router·이준서가 사용할 API Client 계약. 신규 정보 화면과 대시보드·로그·이력 화면은 이준서 소유다.
+받는 것: 손영민의 모델·조회 함수·응답·예약 변경 Tool 계약, 최두나의 DB/Trace/Vision Repository·Service. 넘기는 것: MCP Client·Server·화면·Router·API Client 계약.
 
 #### 8.3.1 로그인·관리자 권한 정책
 
@@ -513,22 +518,7 @@ G1에서는 상대 구현 대신 **테스트용** Fake를 사용한다. 예: 손
 
 첫 작업: `docs/plans/lee.md`에 L1~L6을 작성한다. Backend 없이 MCP를 직접 호출하는 작은 테스트부터 만든다. 화면 단위 시험이 통과하면 실제 API와 연결한다.
 
-### 8.4 이준서 — 신규 사용자 화면·관리자 대시보드
-
-| 순서 | 할 일                                     | 산출물                              | 확인 방법                                              |
-| ---- | ----------------------------------------- | ----------------------------------- | ------------------------------------------------------ |
-| J1   | 기존 와이어프레임·API Client 계약 확인   | `docs/plans/junseo.md`, 화면 목록 | 기존 화면 회귀 범위와 신규 범위 구분                   |
-| J2   | 사용자용 정보 화면 추가                   | `frontend/app_pages/` 신규 파일   | 동물/운영/예약 정책 출처·빈 상태 표시                 |
-| J3   | 관리자 대시보드 추가                      | `frontend_admin/` 신규 화면       | 요약 지표가 Backend 값과 일치                          |
-| J4   | 로그 분석·이력 조회 화면 추가            | 관리자 로그/이력 화면               | 필터·빈 결과·오류·권한 차단 시험                    |
-| J5   | 필요한 DB/API 계약 제안 및 migration 추가 | 신규 migration·API 계약서          | 목적·rollback·소유자 검토 기록                       |
-| J6   | 화면 단위·브라우저 통합 시험             | `tests/ui_new/`, 실행 캡처        | 일반 사용자 403, 관리자 정상 조회, 기존 화면 회귀 통과 |
-
-받는 것: 이원민의 인증·API Client 계약, 손영민의 응답/상태 계약, 최두나의 DB Schema와 참조 데이터. 넘기는 것: 신규 화면, 화면에 필요한 조회 API/DB 요구사항, UI 시험 결과. 기존 `app.py`, 공통 Client, 기존 컴포넌트를 수정해야 하면 소유자와 먼저 계약하고 별도 파일을 우선한다.
-
-첫 작업: `docs/plans/junseo.md`에 신규 사용자 화면과 관리자 화면을 구분하고, 각 화면의 데이터 출처·API·권한·빈 상태·완료 시험을 적는다.
-
-### 8.5 각자 작성할 계획·보고 공통 양식
+### 8.4 각자 작성할 계획·보고 공통 양식
 
 ```text
 담당자 / 브랜치:
@@ -564,7 +554,7 @@ G1에서는 상대 구현 대신 **테스트용** Fake를 사용한다. 예: 손
 
 ## 10. 테스트·시연·완료 기준
 
-### 10.1 v4 Case와 담당 연결
+### 10.1 Case와 담당 연결
 
 | Case             | 단계 | 확인할 핵심 결과                                                                   | 주담당                             |
 | ---------------- | ---- | ---------------------------------------------------------------------------------- | ---------------------------------- |
@@ -584,8 +574,8 @@ G1에서는 상대 구현 대신 **테스트용** Fake를 사용한다. 예: 손
 | N-05/08          | P1-B | 시간 이내 코스, 세션 Memory 반영·격리                                             | 손영민/최두나                      |
 | DB-01            | 필수 | 유효 JSON 동물정보 100건과 PostgreSQL 적재 100건 일치, 중복/null 0건               | 최두나                             |
 | DB-02            | 필수 | 100건 기반 pgvector 생성·인덱스·대표 RAG 검색 출처 일치                          | 최두나/손영민                      |
-| RP-01            | P1-A | 드림투어 참조 정책의 출처·확인일·활성 버전이 Tool 결과와 화면에 표시             | 최두나/손영민/이준서               |
-| UI-01            | 필수 | 신규 사용자 정보 화면과 관리자 대시보드·로그·이력의 정상/빈/오류/권한 상태       | 이준서/이원민                      |
+| RP-01            | P1-A | 정책의 출처·확인일·활성 버전이 Tool 결과와 화면에 표시                           | 최두나/손영민/이원민               |
+| UI-01            | P2   | 사용자 정보 화면과 관리자 Trace·지도·음성·이미지 화면의 정상/빈/오류/권한 상태  | 이원민/손영민/최두나               |
 
 추가 경계 시험: LLM 7회째 차단, Tool 9회째 차단, 90초 deadline, MCP 결과 JSON 오류, 관리자 토큰 누락, 임의 세션 입력. 실제로 90초/120초 기다리지 않고 테스트용 clock/짧은 설정을 주입한다.
 
@@ -620,17 +610,17 @@ Mock Provider는 시나리오별로 다음 응답을 반환하는 테스트 대�
 ### 10.4 P0 완료 체크리스트
 
 - [ ] Backend/MCP/Streamlit이 각자 터미널에서 실행된다.
-- [ ] v4 정상·비정상 Case와 DB-01/02, RP-01, UI-01 시험이 있다.
+- [ ] 정상·비정상 Case와 DB-01/02, RP-01, UI-01을 시험한다.
 - [ ] 세 운영 Tool이 실제 별도 MCP 프로세스로 호출된다.
 - [ ] RAG 출처·점수·근거 없음 처리가 화면에서 확인된다.
 - [ ] Model이 Tool 결과를 받아 다음 행동/종료를 판단한 실제 시연 증거가 있다.
 - [ ] 모든 실행 한도·허용 도구·필수 인자 검증이 Backend에서 적용된다.
-- [ ] 팀원 네 명이 최신 main을 받아 동일 절차로 실행한다.
+- [ ] 팀원 세 명이 최신 test를 받아 동일 절차로 실행한다.
 - [ ] 실행 방법·실패/미구현·Mock 범위가 보고서에 기록되어 있다.
 
 ## 11. P1 예약·Memory 구현 계약
 
-P0에서는 이 장의 코드를 미리 완성할 필요가 없다. 구현할 때 네 담당자가 같은 계약을 사용하도록 미리 정한다.
+P0에서는 이 장의 코드를 미리 완성할 필요가 없다. 구현할 때 세 담당자가 같은 계약을 사용하도록 미리 정한다.
 
 ### 11.1 예약 호출과 저장 위치
 
@@ -644,7 +634,7 @@ P0에서는 이 장의 코드를 미리 완성할 필요가 없다. 구현할 �
 
 저장 필드: `action_id, run_id, session_id, pending_call{name,arguments}, summary, risk, approval_status, expires_at, idempotency_key, approved_at, result`.
 
-`approval_status`: `pending/processing/completed/rejected/expired`. v3의 `approved`는 승인 시각 `approved_at`으로 기록하고 별도 장기 대기 상태로 사용하지 않는다. `idempotency_key=session_id+":"+action_id`이며 클라이언트/LLM이 정하지 않는다.
+`approval_status`: `pending/processing/completed/rejected/expired`. `approved`는 승인 시각 `approved_at`으로 기록하고 별도 장기 대기 상태로 사용하지 않는다. `idempotency_key=session_id+":"+action_id`이며 클라이언트/LLM이 정하지 않는다.
 
 ```json
 {
@@ -677,12 +667,12 @@ P0에서는 이 장의 코드를 미리 완성할 필요가 없다. 구현할 �
 
 ### 11.4 P1-B 추가 분담
 
-| 기능      | 담당과 파일                                                                                                    | 고정할 계약·시험                                                                                                     |
-| --------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| 티켓 조회 | 최두나`tools/zoo_tools.py`, 이원민 `mcp_server/tools/zoo_read.py`, 최두나 `data/operations/tickets.json` | `lookup_ticket_scope(ticket_type: str)` → 공통 봉투의 `data={ticket_type,included,excluded}`                     |
-| 날씨 조회 | 이원민`mcp_server/tools/public_data.py`, 최두나 `data/operations/weather.json`                             | `lookup_public_weather(region: str)` → `data={region,condition,as_of}`. 먼저 Mock으로 구현, 실제 API 연동은 선택 |
-| 세션 대화 | 최두나`repositories/session_memory_repository.py`, 손영민 Orchestration Service                              | `get_recent_messages(session_id)`, `append_messages(session_id,messages)`; 세션별 10개 제한·격리 시험            |
-| 맞춤 코스 | 손영민 Runtime/지침·결과 검증, 이원민 화면                                                                    | 문서·일정·휴장·경로를 조합하되 이동+관람 시간을 합산하여 입력 시간 이내인지 Backend 검증                           |
+| 기능      | 담당과 파일                                                                                                                                                                                                           | 고정할 계약·시험                                                                                                                                                                                                                   |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 티켓 조회 | 최두나`tools/zoo_tools.py`, 이원민 `mcp_server/tools/zoo_read.py`, 최두나 `data/operations/tickets.json`                                                                                                        | `lookup_ticket_scope(ticket_type: str)` → 공통 봉투의 `data={ticket_type,included,excluded}`                                                                                                                                   |
+| 날씨 조회 | 최두나`tools/zoo_tools.py`(Open-Meteo API 연동), 이원민 `mcp_server/tools/public_data.py`                                                                                                                         | `lookup_public_weather(region: str="서울")` → `data={region,condition,indoor_recommended,as_of}`. TTL 10분 캐시, 실패·timeout이어도 코스 추천은 중단하지 않음                                                                 |
+| 세션 대화 | 최두나`repositories/session_memory_repository.py`, 손영민 Orchestration Service                                                                                                                                     | `get_recent_messages(session_id)`, `append_messages(session_id,messages)`; 세션별 10개 제한·격리 시험                                                                                                                          |
+| 맞춤 코스 | 최두나`tools/zoo_tools.py`(`get_course_info`/`get_indoor_course_info`/`get_outdoor_course_info`, `data/operations/course_profiles.json`), 손영민 Runtime의 날씨 선조회·Allowlist 좁히기·지침, 이원민 화면 | 휴장 제외 후 이동+관람 시간을 그리디로 합산해 입력 시간 이내 코스만 반환(시간 내 없으면`stops=[]`). 비/악천후면 Runtime이 `get_indoor_course_info`만 Allowlist에 남기고, 실외 명시 요청 시에만 `get_outdoor_course_info` 사용 |
 
 P1 Tool의 Schema·Allowlist 추가는 손영민이 먼저 병합한다. 코스 관람 시간의 Mock 기준은 최두나가 시설 데이터에 추가한다. N-05는 총 120분 이내, N-08은 실제 저장된 이전 조건 반영을 검증한다. P1 개발 중 위 공통 출력에 추가 필드가 필요하면 9장 계약 변경 규칙을 적용한다.
 
@@ -695,42 +685,81 @@ P1 Tool의 Schema·Allowlist 추가는 손영민이 먼저 병합한다. 코스 
 ### 12.1 .env.example에 둘 설정
 
 ```dotenv
-MCP_URL=http://127.0.0.1:8010/mcp
-MCP_HOST=0.0.0.0
-MCP_PORT=8010
+# Zoo Visit Guide AI Agent - 환경 변수 예시 (값 없는 키 목록 + 안전한 기본값)
+# 실제 값은 .env로 복사한 뒤 채운다. .env는 커밋하지 않는다.
 
+# 실행 모드: mock(결정적 테스트) | openai(실제 LLM 시연)
+APP_MODE=openai
+STORAGE_MODE=persistent
+
+# P1: pgvector/Redis 전환 (STORAGE_MODE=persistent일 때만 필요)
+DATABASE_URL=postgresql://zoo:zoo@192.100.200.239:5432/zoo
+REDIS_URL=redis://192.100.200.239:6380/0
+SESSION_MEMORY_MAX_TURNS=6
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_RETRY_COUNT=1
+
+# OpenAI Provider (APP_MODE=openai일 때만 필요)
+OPENAI_MODEL=gpt-4.1-mini
 OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
+
+# 관리자 Trace 조회 인증 (미설정 시 /api/admin/trace 차단)
+ADMIN_TOKEN=
+
+# MCP 서버 연결 (조회 Tool 3종은 이 서버를 통해 호출)
+MCP_SERVER_URL=http://192.100.200.199:8100/mcp
+#MCP 서버를 가동하는 인원을 제외한 다른 인원은 MCP_HOST,MCP_PORT 를 주석처리 할것.
+MCP_HOST=127.0.0.1
+MCP_PORT=8100
+
+# Backend 자체 주소 (프론트/평가기가 참조)
+BACKEND_URL=http://192.100.200.198:8000
+
+# RAG 설정
+RAG_TOP_K=3
+RAG_MIN_SCORE=0.5
+
+# Runtime 실행 한도 (Agent Runtime 가드레일)
+MAX_AGENT_STEPS=6
+MAX_SAME_TOOL_CALLS=2
+MAX_TOOL_CALLS=8
+RUN_TIMEOUT_SECONDS=90
+MCP_TIMEOUT_SECONDS=10
+MCP_RETRY_COUNT=1
+
+# P1: 예약 승인/세션
+PENDING_TTL_SECONDS=120
+SESSION_TTL_SECONDS=7200
+
+# 교육용 Mock 데이터의 "지금" 기준 시각 (비우면 Asia/Seoul 현재 시간 사용)
+# 승인 TTL/세션 TTL/전체 timeout에는 적용하지 않음 (실제 시계 사용)
+DEMO_NOW=2026-09-05T13:00:00+09:00
+
+# ---------------------------------------------------------------------------
+# 아래는 test 브랜치에 있던 값이다. 이 프로젝트(Zoo Visit Guide)와 무관해 보이는
+# 이름(mini_agent_travel, 카카오/올라마/날씨 API 등)이 섞여 있어 실제로 어떤 기능이
+# 이 값을 쓰는지 코드에서 다시 확인이 필요하다 — 병합 시 임의로 지우지 않고
+# 남겨만 둔다.
+# ---------------------------------------------------------------------------
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.6-flash
 PYTHON_VERSION=3.12.7
-APP_MODE=real
-
 LLM_PROVIDER=openai
-STORAGE_MODE=memory
 LLM_FALLBACK_ENABLED=false
 LLM_FALLBACK_PROVIDER=mock
-
 KMA_SERVICE_KEY=
-DATABASE_URL=postgresql://agent_user:agent_prd@127.0.0.1:5433/agent_db
-PGVECTOR_COLLECTION=animal_document_chunks
-
+PGVECTOR_COLLECTION=travel_documents
 RAG_COLLECTION=mini_agent_travel
-RAG_MIN_SCORE=0.5
-REDIS_URL=redis://127.0.0.1:6379/0
 RAG_CACHE_TTL_SECONDS=300
 REDIS_TTL_SECONDS=1800
-
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=llama3.2
 OLLAMA_EMBEDDING_MODEL=embeddinggemma
-BACKEND_API_URL=http://127.0.0.1:8000
+BACKEND_API_URL=http://192.100.200.198:8000
 REQUEST_TIMEOUT_SECONDS=60
-
 WEATHER_MODE=open_meteo
 OPEN_METEO_BASE_URL=https://api.open-meteo.com
 OPEN_METEO_GEOCODING_URL=https://geocoding-api.open-meteo.com
-
 KAKAO_REST_API_KEY=
 ```
 
@@ -775,53 +804,52 @@ python -m eval.run --base-url http://127.0.0.1:8000
 
 실제 LLM 시연은 `.env`에서 `APP_MODE=openai`로 변경하고 Backend를 재시작한다. 키가 없거나 Provider가 실패하면 명시적으로 오류를 보여주고 Mock으로 조용히 대체하지 않는다. 기본 단위 시험은 유료 API를 호출하지 않는다.
 
-## 13. 추가 결정 사항 보고와 기준 문서 보정
+## 13. 추가 결정 사항 보고와 보정
 
 사용자 요청에 따라 아래 미정 사항을 초보자의 구현·수업 이해·충돌 예방을 기준으로 정했다. 새 승인 절차를 요구하는 목록이 아니라 **이번 작업지시서에 적용한 결정 기록**이다.
 
-| 번호 | 결정                                                     | 이유/기준과 관계                                                              |
-| ---- | -------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| D01  | 이준서 합류로 4인 분담, 단계별 공동 통합                 | 기존 화면/API 소유권을 보존하고 신규 사용자·관리자 화면을 별도 담당으로 배정 |
-| D02  | 순수 Python 단일 Runtime, LangGraph·다중 Agent 제외     | v3 단일 Agent와 수업 06 Python Loop 직접 적용                                 |
-| D03  | Streamlit·동기 HTTP·PostgreSQL로 기준 전환             | 회의 결정에 따라 JSON을 DB에 적재하고 pgvector/RAG의 단일 검색 원본으로 사용  |
-| D04  | 운영 조회 3종 모두 Streamable HTTP MCP                   | v3 최소 조건 충족, 이중 로컬/MCP 경로 방지                                    |
-| D05  | OpenAI는 수업 어댑터, Mock은 테스트 모드로 구분          | 실제 AI 판단 증거와 반복 가능한 시험 모두 확보                                |
-| D06  | RAG는 로컬 준-Tool, 최종 생성은 Runtime의 Provider 한 곳 | 사전 분류기와 별도 RAG LLM 중복 호출 제거                                     |
-| D07  | 동물정보 JSON 100건·pgvector 검색·명시적 점수 규칙     | DB 적재 검증과 RAG 근거 검증을 분리해 완료 판정                               |
-| D08  | 서버 발급 세션은 ask에서 시작, 추가 세션 API 없음        | v3 3개 P0 API 유지, 프론트 임의 세션 방지                                     |
-| D09  | 기존 관리자 인증 계약 유지, 신규 대시보드는 이준서 담당  | 기존 API 호환을 유지하며 관리자 화면·로그·이력 조회를 확장                  |
-| D10  | 예약은 P1 Backend 로컬 변경 Tool, MCP Bridge 제외        | 승인 API 순환·중복 저장 책임 제거                                            |
-| D11  | 조회 timeout 1회 재시도, 한도·전체 deadline 공통 관리   | 작업지시서의 모호한 “최대 2회 재시도” 교체                                  |
-| D12  | 파일 소유권·Gate 0·작은 PR·개인 clone                 | 내용 충돌과 브랜치 간 작업 오염 방지                                          |
-| D13  | 데모 일정 시각과 실제 TTL 시계 분리                      | 언제 시연해도 일정 재현, 만료 로직 정상 유지                                  |
-| D14  | P0 Memory 없음, 추가 질문은 완성형 재입력                | v3 무상태 범위 안에서 초보 구현 부담 제한                                     |
-| D15  | 공통 응답에 run/session/종료 사유 추가                   | v3 State 필드를 API로 노출하여 UI·평가 연결                                  |
-| D16  | 공통 Python 3.12.7 사용                                  | 팀원의 실행 환경·의존성·시험 결과를 같게 유지                               |
-| D17  | 드림투어 승인·취소 규정을 버전형 DB 참조 데이터로 저장  | Tool이 출처·확인일이 있는 활성 규정을 조회하고 정책 변경 이력을 보존         |
-| D18  | 이준서에게 신규 화면용 DB 추가 권한 부여                 | 새 migration·rollback·API 소비처를 기록하고 최두나와 Schema 충돌을 검토     |
+| 번호 | 결정                                                       | 이유/기준과 관계                                                             |
+| ---- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| D01  | 손영민·최두나·이원민 3인 분담, 단계별 공동 통합          | 실제 test 병합 이력에 맞춰 구현·검증 책임을 정리                            |
+| D02  | 순수 Python 단일 Runtime, LangGraph·다중 Agent 제외       | v3 단일 Agent와 수업 06 Python Loop 직접 적용                                |
+| D03  | Streamlit·동기 HTTP·PostgreSQL로 기준 전환               | 회의 결정에 따라 JSON을 DB에 적재하고 pgvector/RAG의 단일 검색 원본으로 사용 |
+| D04  | 운영 조회 3종 모두 Streamable HTTP MCP                     | v3 최소 조건 충족, 이중 로컬/MCP 경로 방지                                   |
+| D05  | OpenAI는 수업 어댑터, Mock은 테스트 모드로 구분            | 실제 AI 판단 증거와 반복 가능한 시험 모두 확보                               |
+| D06  | RAG는 로컬 준-Tool, 최종 생성은 Runtime의 Provider 한 곳   | 사전 분류기와 별도 RAG LLM 중복 호출 제거                                    |
+| D07  | 동물정보 JSON 100건·pgvector 검색·명시적 점수 규칙       | DB 적재 검증과 RAG 근거 검증을 분리해 완료 판정                              |
+| D08  | 서버 발급 세션은 ask에서 시작, 추가 세션 API 없음          | v3 3개 P0 API 유지, 프론트 임의 세션 방지                                    |
+| D09  | 기존 관리자 인증 계약 유지, Trace UX는 손영민·이원민 담당 | 기존 API 호환을 유지하며 관리자 화면·로그·이력 조회를 확장                 |
+| D10  | 예약은 P1 Backend 로컬 변경 Tool, MCP Bridge 제외          | 승인 API 순환·중복 저장 책임 제거                                           |
+| D11  | 조회 timeout 1회 재시도, 한도·전체 deadline 공통 관리     | 작업지시서의 모호한 “최대 2회 재시도” 교체                                 |
+| D12  | 파일 소유권·Gate 0·작은 PR·개인 clone                   | 내용 충돌과 브랜치 간 작업 오염 방지                                         |
+| D13  | 데모 일정 시각과 실제 TTL 시계 분리                        | 언제 시연해도 일정 재현, 만료 로직 정상 유지                                 |
+| D14  | P0 Memory 없음, 추가 질문은 완성형 재입력                  | v3 무상태 범위 안에서 초보 구현 부담 제한                                    |
+| D15  | 공통 응답에 run/session/종료 사유 추가                     | v3 State 필드를 API로 노출하여 UI·평가 연결                                 |
+| D16  | 공통 Python 3.12.7 사용                                    | 팀원의 실행 환경·의존성·시험 결과를 같게 유지                              |
+| D17  | 드림투어 승인·취소 규정을 버전형 DB 참조 데이터로 저장    | Tool이 출처·확인일이 있는 활성 규정을 조회하고 정책 변경 이력을 보존        |
+| D18  | P2 화면용 DB 변경은 최두나, API Client·화면은 이원민 담당 | migration·rollback·API 소비처를 기록하고 Schema 충돌을 방지                |
 
 ### 기준 문서/수업 예제의 불일치 보정
 
-| 발견 사항                                                       | 이 문서의 적용                                                   |
-| --------------------------------------------------------------- | ---------------------------------------------------------------- |
-| v3에서 MCP는 P0 필수인데 17.1 테스트 표는 P1                    | MCP 발견·호출·장애 시험을 P0로 배정                            |
-| v3 T-A05 P0 예시가 P1 예약`headcount`를 사용                  | P0는 경로 인자 타입 오류, headcount 시험은 P1에 추가             |
-| v3 Profile 코드 예시에`allowed_rag_collections` 누락          | 7.4절 요구를 따라 Profile 필드로 추가                            |
-| v3 전체 Tool 8회 초과 시 상태가 명확하지 않음                   | 부분 근거와`stopped`, `termination_reason=max_tool_calls`    |
-| v3`startup_error`, `invalid_tool_call` 등이 상태명처럼 보임 | 6개 RunStatus만 유지, 상세 원인은 종료 사유/오류 코드            |
-| v3 승인 도식의 세션 불일치 분기가 action 거절로 이어질 수 있음  | 다른 세션 요청만 거절하고 원래 action은 변경하지 않음            |
-| 수업의 max_steps는 최초 호출 이후 Tool 라운드 기준              | v3의 LLM 총 6회를 따르며 최초 호출 포함, 마지막 허용 응답도 검사 |
-| 수업의`failed`, `waiting_approval`, `actor_id`            | v3 상태와 검증된 서버 세션으로 교체                              |
-| 수업 0826 예제는 근거 없는 경우 일반 지식 fallback              | 이 프로젝트는 근거 없는 사실 생성 금지                           |
-| 수업 메모리 set 예제는 동시성과 재시작 보장 없음                | P1 단일 프로세스 lock·원자적 claim, 재시작 한계 명시            |
+| 발견 사항                                                     | 이 문서의 적용                                                   |
+| ------------------------------------------------------------- | ---------------------------------------------------------------- |
+| MCP는 P0 필수인데 17.1 테스트 표는 P1                         | MCP 발견·호출·장애 시험을 P0로 배정                            |
+| T-A05 P0 예시가 P1 예약`headcount`를 사용                   | P0는 경로 인자 타입 오류, headcount 시험은 P1에 추가             |
+| Profile 코드 예시에`allowed_rag_collections` 누락           | 7.4절 요구를 따라 Profile 필드로 추가                            |
+| 전체 Tool 8회 초과 시 상태가 명확하지 않음                    | 부분 근거와`stopped`, `termination_reason=max_tool_calls`    |
+| `startup_error`, `invalid_tool_call` 등이 상태명처럼 보임 | 6개 RunStatus만 유지, 상세 원인은 종료 사유/오류 코드            |
+| 승인 도식의 세션 불일치 분기가 action 거절로 이어질 수 있음   | 다른 세션 요청만 거절하고 원래 action은 변경하지 않음            |
+| 수업의 max_steps는 최초 호출 이후 Tool 라운드 기준            | v3의 LLM 총 6회를 따르며 최초 호출 포함, 마지막 허용 응답도 검사 |
+| 수업의`failed`, `waiting_approval`, `actor_id`          | v3 상태와 검증된 서버 세션으로 교체                              |
+| 수업 0826 예제는 근거 없는 경우 일반 지식 fallback            | 이 프로젝트는 근거 없는 사실 생성 금지                           |
+| 수업 메모리 set 예제는 동시성과 재시작 보장 없음              | P1 단일 프로세스 lock·원자적 claim, 재시작 한계 명시            |
 
-## 14. 바로 시작할 체크리스트
+## 14. 체크리스트
 
 - [ ] 전원: 이 문서 1~6장을 읽고 자신의 소유 파일 확인.
 - [ ] 손영민: G0-1 공통 계약 PR, Runtime/Provider 뼈대 준비.
 - [ ] 최두나: Python 3.12.7·requirements, PostgreSQL migration, JSON 100건 적재 대조, pgvector/RAG와 예약 정책 참조 데이터 준비.
 - [ ] 이원민: MCP 연결·목록 조회·기존 화면/API Client 계약 준비.
-- [ ] 이준서: `docs/plans/junseo.md`, 신규 사용자 정보 화면, 관리자 대시보드·로그·이력 화면과 필요한 DB/API 요구사항 준비.
 - [ ] 전원: 자신의 `docs/plans/이름.md`에 8장 계획을 구체화.
 - [ ] 전원: Gate 0 병합 후 Python 3.12.7과 같은 기준 commit에서 import 확인.
 - [ ] 전원: 7.3절의 자기 연결 시험을 담당자와 함께 실행하고 Trace 확인.
