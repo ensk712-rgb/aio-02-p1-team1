@@ -269,6 +269,19 @@ class FakeAgentClient:
             "retrieved_at": now.isoformat(),
         }
 
+    def analyze_animal_image(
+        self, image_bytes: bytes, *, filename: str, content_type: str
+    ) -> dict[str, Any]:
+        """실제 Vision 호출 없이 결정적인 분석 문장을 돌려준다."""
+        now = datetime.now(timezone.utc)
+        return {
+            "success": True,
+            "data": {"analysis": "사진 속 동물은 자이언트 판다로 추정됩니다. (Fake 모드)"},
+            "error": None,
+            "source": "vision_animal_image",
+            "retrieved_at": now.isoformat(),
+        }
+
     def get_course_info(
         self,
         *,

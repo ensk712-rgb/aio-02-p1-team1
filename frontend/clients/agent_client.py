@@ -222,6 +222,16 @@ class AgentClient:
     def get_public_weather(self, region: str = "서울") -> dict[str, Any]:
         return self._request("GET", "/api/tools/public-weather", params={"region": region})
 
+    def analyze_animal_image(
+        self, image_bytes: bytes, *, filename: str, content_type: str
+    ) -> dict[str, Any]:
+        """POST /api/tools/animal-image-analysis를 호출해 사진 속 동물을 분석한다."""
+        return self._request(
+            "POST",
+            "/api/tools/animal-image-analysis",
+            files={"image": (filename, image_bytes, content_type)},
+        )
+
     def _request(
         self, method: str, path: str, *, allow_empty: bool = False, **kwargs: Any
     ) -> dict[str, Any]:

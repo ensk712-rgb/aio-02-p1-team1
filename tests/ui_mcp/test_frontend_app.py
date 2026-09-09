@@ -208,9 +208,6 @@ def test_zoo_map_shows_closure_warning_for_closed_habitat(monkeypatch) -> None:
 
     at.selectbox(key="map_route_destination").set_value("코끼리관").run()
 
-
-    at.radio[0].set_value("코끼리관").run()
-
     assert not at.exception
     assert any("휴장 중입니다" in warning.value for warning in at.warning)
     assert any("시설 점검" in warning.value for warning in at.warning)
