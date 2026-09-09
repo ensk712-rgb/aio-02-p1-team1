@@ -11,6 +11,8 @@ from mcp_server.tools.zoo_read import (
     find_habitat_route,
     get_course_info,
     get_feeding_schedule,
+    get_indoor_course_info,
+    get_outdoor_course_info,
 )
 
 
@@ -27,9 +29,12 @@ def create_mcp_server(*, host: str | None = None, port: int | None = None) -> Fa
     server.tool()(get_feeding_schedule)
     server.tool()(check_closure_status)
     server.tool()(find_habitat_route)
-    server.tool()(lookup_public_weather)
-    server.tool()(get_course_info)
     server.tool()(lookup_ticket_scope)
+    # P1-B 맞춤 코스 추천 Tool 4종 (계획서 §5.0, §5.2.1)
+    server.tool()(get_course_info)
+    server.tool()(get_indoor_course_info)
+    server.tool()(get_outdoor_course_info)
+    server.tool()(lookup_public_weather)
     return server
 
 

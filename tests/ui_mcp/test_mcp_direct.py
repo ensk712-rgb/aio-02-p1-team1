@@ -72,9 +72,12 @@ def test_list_tools_exposes_fixed_names_and_schemas(mcp_process) -> None:
         "get_feeding_schedule",
         "check_closure_status",
         "find_habitat_route",
-        "lookup_public_weather",
         "lookup_ticket_scope",
+        # P1-B 맞춤 코스 추천 Tool 4종 (계획서 §5.0, §5.2.1)
         "get_course_info",
+        "get_indoor_course_info",
+        "get_outdoor_course_info",
+        "lookup_public_weather",
     }
     assert by_name["get_feeding_schedule"]["input_schema"]["required"] == ["habitat"]
     assert by_name["check_closure_status"]["input_schema"].get("required", []) == []
@@ -82,15 +85,35 @@ def test_list_tools_exposes_fixed_names_and_schemas(mcp_process) -> None:
         "current",
         "destination",
     ]
+    for course_tool_name in (
+        "get_course_info",
+        "get_indoor_course_info",
+        "get_outdoor_course_info",
+    ):
+        # available_minutes만 필수고 child_accompanying/current는 기본값이 있다
+        # (CourseInfoInput, 계획서 §5.1).
+        assert by_name[course_tool_name]["input_schema"]["required"] == [
+            "available_minutes"
+        ], course_tool_name
     assert by_name["lookup_public_weather"]["input_schema"]["required"] == ["region"]
 
 
-def test_call_three_tools_returns_common_result_contract(mcp_process) -> None:
+def test_call_operational_mock_tools_returns_common_result_contract(mcp_process) -> None:
+    """Mock 운영 데이터만 쓰는 Tool들을 실제로 호출해 공통 계약을 확인한다.
+
+    lookup_public_weather는 여기서 실제로 호출하지 않는다 — 이 Tool은 Mock이
+    아니라 실제 Open-Meteo API를 호출하므로(계획서 §5.2.1), 이 테스트를 실제
+    네트워크에 의존하게 만들지 않기 위해서다(§10 "테스트는 실제 외부 API를
+    호출하지 않는다"). 대신 위 test_list_tools_exposes_fixed_names_and_schemas에서
+    Schema로만 노출 여부를 확인한다.
+    """
     calls = (
         ("get_feeding_schedule", {"habitat": "해양관"}),
         ("check_closure_status", {"habitat": "해양관"}),
         ("find_habitat_route", {"current": "정문", "destination": "해양관"}),
-        ("lookup_public_weather", {"region": "서울"}),
+        ("get_course_info", {"available_minutes": 120}),
+        ("get_indoor_course_info", {"available_minutes": 120}),
+        ("get_outdoor_course_info", {"available_minutes": 120}),
     )
 
     async def call_and_assert() -> None:
@@ -100,29 +123,7 @@ def test_call_three_tools_returns_common_result_contract(mcp_process) -> None:
             assert result.success is True, name
             assert result.data, name
             assert result.error is None, name
-            expected_source = (
-                "mock_public_weather"
-                if name == "lookup_public_weather"
-                else "mock_zoo_operations"
-            )
-            assert result.source == expected_source, name
+            assert result.source == "mock_zoo_operations", name
             assert result.retrieved_at.utcoffset() is not None, name
-
-    asyncio.run(call_and_assert())
-
-
-def test_public_weather_returns_fixed_contract(mcp_process) -> None:
-    async def call_and_assert() -> None:
-        result = await McpClient(TEST_URL).call_tool(
-            "lookup_public_weather",
-            {"region": "서울"},
-        )
-
-        assert result.success is True
-        assert set(result.data) == {"region", "condition", "as_of"}
-        assert result.data["region"] == "서울"
-        assert result.data["condition"] == "맑음"
-        assert result.source == "mock_public_weather"
-        assert result.retrieved_at.utcoffset() is not None
 
     asyncio.run(call_and_assert())

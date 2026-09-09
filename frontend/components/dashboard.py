@@ -9,7 +9,7 @@ import streamlit as st
 def render_hero() -> None:
     image_path = Path(__file__).resolve().parents[1] / "image" / "예약승인 팜플릿 이미지.png"
     encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
-    st.html(f"""<section class="zoo-hero" style="background-image:url(data:image/png;base64,{encoded})" aria-label="우리동물원 AI 가이드 소개"><div class="zoo-kicker" style="color:#dff29b">WELCOME TO OUR ZOO</div><h1>오늘 어떤 동물을<br>만나볼까요?</h1><p>궁금한 동물과 먹이시간, 휴장 정보, 관람 경로를 AI 가이드에게 물어보세요.</p></section>""")
+    st.html(f"""<section class="zoo-hero" style="background-image:url(data:image/png;base64,{encoded})" aria-label="우리동물원 AI 가이드 소개"><div class="zoo-kicker" style="color:var(--leaf-bright)">WELCOME TO OUR ZOO</div><h1>오늘 어떤 동물을<br>만나볼까요?</h1><p>궁금한 동물과 먹이시간, 휴장 정보, 관람 경로를 AI 가이드에게 물어보세요.</p></section>""")
 
 
 def render_feeding_card() -> None:

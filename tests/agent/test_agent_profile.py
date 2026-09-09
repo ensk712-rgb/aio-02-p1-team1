@@ -6,7 +6,8 @@ from backend.app.agents.registry import get_agent_profile, list_agent_profiles
 
 
 def test_zoo_guide_profile_has_p0_tools_and_ticket_scope() -> None:
-    """zoo_guide는 P0의 세 운영 조회 Tool과 P1 lookup_ticket_scope, 예약 Tool을 허용해야 한다."""
+    """zoo_guide는 P0의 세 운영 조회 Tool, P1 lookup_ticket_scope, P1-B 맞춤
+    코스 추천 Tool 4종(코스 3종 + 날씨), 예약 Tool을 허용해야 한다."""
     profile = get_agent_profile("zoo_guide")
 
     tool_policies = {tool.name: tool for tool in profile.allowed_tools}
@@ -18,9 +19,16 @@ def test_zoo_guide_profile_has_p0_tools_and_ticket_scope() -> None:
         "find_habitat_route",
         "lookup_ticket_scope",
         "get_course_info",
+        "get_indoor_course_info",
+        "get_outdoor_course_info",
+        "lookup_public_weather",
         "reserve_experience_program",
     }
     assert tool_policies["reserve_experience_program"].risk == "change"
+    assert tool_policies["get_course_info"].risk == "read"
+    assert tool_policies["get_indoor_course_info"].risk == "read"
+    assert tool_policies["get_outdoor_course_info"].risk == "read"
+    assert tool_policies["lookup_public_weather"].risk == "read"
 
 
 def test_zoo_guide_profile_allows_animal_cards_only() -> None:
@@ -35,6 +43,17 @@ def test_zoo_guide_profile_includes_reservation_safety_instructions() -> None:
 
     assert "프로그램, 방문 시각, 인원" in profile.instructions
     assert "사용자 확인 전에는 예약 완료를 안내하지 마세요." in profile.instructions
+
+
+def test_zoo_guide_profile_instructs_outdoor_course_trigger() -> None:
+    """실외 코스를 명시적으로 요청하면 get_outdoor_course_info를 쓰라는 유도
+    문구가 있어야 한다(P1-B 계획서 §5.0, 9단계). 날씨에 따른 실내 전용 선택은
+    Backend Runtime이 자동으로 하므로 Agent가 직접 하지 말라는 지침도 필요하다."""
+    profile = get_agent_profile("zoo_guide")
+
+    assert "get_outdoor_course_info" in profile.instructions
+    assert "실외" in profile.instructions
+    assert "get_indoor_course_info를 직접 선택하지 마세요" in profile.instructions
 
 
 def test_unknown_agent_id_is_rejected() -> None:

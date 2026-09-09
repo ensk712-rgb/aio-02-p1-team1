@@ -1,0 +1,39 @@
+Generated using the built-in image_gen tool by editing zoo_animal_photo_map_v1.png.
+The animal portraits are AI-generated and all positions are an illustrative design concept, not verified real-world locations.
+
+Use case: precise-object-edit
+Asset type: expanded Korean zoo visitor map, version 2.
+Input image 1 is the EDIT TARGET: the existing twelve-animal zoo map.
+Primary edit: Expand this exact design to feature TWENTY distinct animals. Keep the existing twelve species and add eight more. Retain the original image's polished elevated zoo landscape, natural green trees, ivory pedestrian paths, realistic habitat scenery, circular photographic animal portrait pins with white borders and pointed tails, dark-green Korean labels, and warm welcoming entrance arch. This should feel like the larger edition of the same map.
+Allow the enclosure layout to expand and be thoughtfully rearranged so that twenty location pins fit comfortably. Use a large high-resolution landscape canvas, preferably 2400 by 1800 pixels (4:3), with more map area and sufficient whitespace. Keep substantial portrait sizes, clear labels, and connected paths. Do not simply crowd eight extra pins onto the original map.
+Species manifest: exactly ONE clearly visible portrait pin and matching Korean name label for EACH of these twenty species, twenty pins total:
+1 "판다" giant panda
+2 "레서판다" red panda
+3 "호랑이" tiger
+4 "사자" lion
+5 "늑대" gray wolf
+6 "고릴라" gorilla
+7 "오랑우탄" orangutan
+8 "곰" brown bear
+9 "기린" giraffe
+10 "얼룩말" zebra
+11 "코알라" koala
+12 "캥거루" kangaroo
+13 "미어캣" meerkat
+14 "코끼리" elephant
+15 "코뿔소" rhinoceros
+16 "펭귄" penguin
+17 "물범" harbor seal, not sea lion
+18 "수달" river otter
+19 "하마" hippopotamus
+20 "플라밍고" flamingo.
+Composition plan: distribute these in four gently staggered horizontal habitat bands with five featured animals per band, integrated into an organic landscaped park rather than a table or disconnected cards. Uppermost/back band uses manifest 1-5 from left to right. Second band 6-10. Third band 11-15. Foreground water-habitat band 16-20. Forest/bamboo habitats for pandas and forest mammals, separate rocky landscaped carnivore habitats, open grass habitats for savanna animals, eucalyptus for koala, and species-appropriate water/shore areas across the foreground. Pedestrian paths pass between every band, linked by side paths and a main branching circulation path. Each pin's pointed tail locates a unique appropriate habitat; no animal-label mismatches.
+All portrait heads must look like professionally photographed real animals with natural fur/skin/feather detail, not cartoon illustrations. A consistent white circular frame, a clearly legible Korean nameplate attached at the bottom, and a short pointer. Portraits and labels never overlap. Background enclosure animals, if included, must match the nearby featured species.
+Preserve exact title at top left: "동물원 동물 지도".
+Subtitle: "사진으로 만나는 동물 친구들 · 20종".
+Keep a small north compass at top right with "N".
+Keep an attractive bottom-center entrance arch labeled "정문", connected to all walkways.
+Keep a small bottom-left legend with exact text "동물 위치" and "산책로".
+Keep the bottom-right footer exactly "배치 시안 · 실제 위치와 다를 수 있습니다".
+Invariants: all original twelve species remain, all eight additions are present, total twenty unique correctly identified photographic pins, coherent natural park visual style matching the reference, excellent readable Korean, complete uncropped map and text.
+Avoid: duplicate pins, missing species, tiny unreadable labels, crowding, cartoon animal faces, mixing different species in the same enclosure, paths crossing enclosure interiors, commercial logos, invented real-world geographic accuracy, travel times, app UI frames.

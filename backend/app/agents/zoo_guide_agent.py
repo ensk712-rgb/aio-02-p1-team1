@@ -18,13 +18,19 @@ def create_zoo_guide_profile() -> AgentProfile:
             "지금 펭귄 먹이시간이야?",
             "정문에서 해양관까지 어떻게 가?",
             "사육사 체험을 2명 예약해 줘.",
-            "아이랑 갈 만한 짧은 코스 있어?",
+            "5살 아이와 2시간 볼 수 있는 코스를 추천해 줘.",
         ),
         instructions=(
             "필요한 경우에만 제공된 Tool을 사용하세요. "
             "Tool 호출은 Backend Runtime이 allowlist와 입력값을 검증한 뒤 실행합니다. "
             "검색 또는 Tool 결과에 없는 사실, 시간, 운영 정보를 추측하지 마세요. "
             "경로에 필요한 출발지나 목적지가 없으면 추가 정보를 질문하세요. "
+            "맞춤 코스를 추천할 때는 관람 가능 시간이 없으면 먼저 질문하세요. "
+            "사용자가 실외 관람만 명시적으로 요청하면(예: '야외 동물만 보고 싶어', "
+            "'실외 코스로 추천해 줘') get_outdoor_course_info를 호출하세요. "
+            "그 외의 맞춤 코스 요청에는 get_course_info를 호출하세요 — "
+            "날씨에 따라 실내 전용 코스로 바꿀지는 Backend Runtime이 자동으로 "
+            "결정하므로 날씨를 이유로 get_indoor_course_info를 직접 선택하지 마세요. "
             "예약에 필요한 프로그램, 방문 시각, 인원 중 하나라도 없으면 추가 정보를 질문하세요. "
             "프로그램, 방문 시각, 인원이 모두 있으면 "
             "reserve_experience_program Tool을 호출하세요. "
@@ -55,10 +61,37 @@ def create_zoo_guide_profile() -> AgentProfile:
                 risk="read",
                 description="티켓 종류별로 관람 가능한 전시관과 제외 항목을 조회한다.",
             ),
+            # P1-B 맞춤 코스 추천 Tool 3종 (계획서 §5.0) — 세 Tool 모두
+            # available_minutes/child_accompanying/current를 같은 방식으로 받고,
+            # 후보 시설 범위(전체/실내/실외)만 다르다.
             AgentToolPolicy(
                 name="get_course_info",
                 risk="read",
-                description="전체 또는 특정 이름의 추천 관람 코스(시설 순서·예상 총 시간)를 조회한다.",
+                description=(
+                    "관람 가능 시간, 아이 동반 여부, 현재 위치를 받아 "
+                    "실내·실외 시설을 모두 포함한 맞춤 관람 코스를 계산한다."
+                ),
+            ),
+            AgentToolPolicy(
+                name="get_indoor_course_info",
+                risk="read",
+                description=(
+                    "get_course_info와 입력이 같지만 실내 시설만 후보로 "
+                    "맞춤 관람 코스를 계산한다."
+                ),
+            ),
+            AgentToolPolicy(
+                name="get_outdoor_course_info",
+                risk="read",
+                description=(
+                    "get_course_info와 입력이 같지만 실외 시설만 후보로 "
+                    "맞춤 관람 코스를 계산한다."
+                ),
+            ),
+            AgentToolPolicy(
+                name="lookup_public_weather",
+                risk="read",
+                description="지정한 지역의 현재 날씨 상태(맑음/흐림/비/악천후)를 조회한다.",
             ),
             AgentToolPolicy(
                 name="reserve_experience_program",
