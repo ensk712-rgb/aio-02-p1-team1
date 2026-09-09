@@ -1,14 +1,22 @@
-# 테스트 실행 결과 보고서 (2026-09-09)
+# 테스트 실행 및 버그 수정 작업 보고서 (2026-09-09)
 
 ## 개요
 
-- **대상**: 저장소 전체 pytest 테스트 스위트 (`tests/`, 총 307개)
+- **대상**: 저장소 전체 pytest 테스트 스위트 (`tests/`, 총 307개)의 실행, 실패 원인 진단, 버그 수정, 커밋까지
 - **실행자**: Claude Code (요청: ensk712@gmail.com)
-- **브랜치**: `test` (커밋 `b11c16c`, 작업 트리 clean)
+- **브랜치**: `test` (시작 커밋 `b11c16c` → 종료 커밋 `2f5e21c`)
 - **실행 환경**: Windows 10 Pro, Python 3.12.7, pytest 8.4.2 (프로젝트 로컬 인터프리터, venv 아님)
-- **`.env` 파일**: 최초 실행 시점에는 없었음(`.env.example`만 존재, `DATABASE_URL`/`REDIS_URL` 기본값 `""`). 이후 사용자가 사내망 값(`192.100.200.x`)으로 채운 `.env`를 직접 생성했으나, 이 머신에서 해당 사내망 자체에 접근이 안 되어(아래 "미검증 항목" 참고) 실질적인 실행 결과에는 영향 없음.
+- **`.env` 파일**: 최초 실행 시점에는 없었음(`.env.example`만 존재, `DATABASE_URL`/`REDIS_URL` 기본값 `""`). 작업 도중 사용자가 사내망 값(`192.100.200.x`)으로 채운 `.env`를 직접 생성했으나, 이 머신에서 해당 사내망 자체에 접근이 안 되어(아래 "미검증 항목" 참고) 실질적인 실행 결과에는 영향 없음.
 
-## 요약
+## 작업 순서 요약
+
+1. 의존성 미설치로 25개 파일이 수집조차 안 됨 → 서비스별 `requirements.txt`를 모두 설치
+2. 전체 스위트 실행 → 인프라(Postgres/Redis) 의존 테스트가 응답 없이 멈추는 문제 발견 → 그 파일들을 제외하고 실행하는 방식으로 전환
+3. 실패 원인을 하나씩 진단 → **버그 4건**을 실제로 코드/테스트에서 수정하고 재검증
+4. 남은 26건(로컬 Postgres/Redis 필요)을 검증하려고 로컬 Docker, 이어서 사내망 `.env` 두 경로를 시도했으나 둘 다 이 머신에서 막혀 보류
+5. 수정한 3개 파일 + 이 보고서를 커밋 (`2f5e21c`)
+
+## 결과 요약
 
 | 구분 | 개수 | 비고 |
 |---|---:|---|
@@ -43,7 +51,7 @@ MAP_IMAGE_PATH = Path(__file__).resolve().parents[2] / "docs" / "design" / "동�
 - `tests/ui_mcp/test_frontend_app.py::test_route_recommendation_submit_renders_fake_course_result`
 - `tests/ui_mcp/test_frontend_app.py::test_route_recommendation_shows_indoor_only_notice`
 
-**조치**: `MAP_IMAGE_PATH`를 실제 파일명으로 수정 ([frontend/components/route_map.py:11](../../frontend/components/route_map.py:11)). 5건 재실행 결과 모두 통과, `test_frontend_app.py`+`test_frontend_admin_app.py` 33건 전체 재실행에서도 회귀 없음을 확인했습니다 (아직 커밋되지 않은 작업 트리 상태).
+**조치**: `MAP_IMAGE_PATH`를 실제 파일명으로 수정 ([frontend/components/route_map.py:11](../../frontend/components/route_map.py:11)). 5건 재실행 결과 모두 통과, `test_frontend_app.py`+`test_frontend_admin_app.py` 33건 전체 재실행에서도 회귀 없음을 확인했습니다.
 
 ## 실제 버그로 판단되었던 실패 — MCP 클라이언트 반복 호출 타임아웃 (1건) — ✅ 수정 완료
 
@@ -119,13 +127,22 @@ MAP_IMAGE_PATH = Path(__file__).resolve().parents[2] / "docs" / "design" / "동�
 - `tests/integration/policy/test_policy_flow.py` 4/4, `tests/integration/rag_agent/test_rag_agent_integration.py` 3/3 통과
 - `tests/ui_mcp/test_mcp_client_errors.py` 8/8, `tests/ui_mcp/test_mcp_direct.py` 2/2, `tests/ui_mcp/test_main_integration.py` 1/1 통과
 
+## 커밋 내역
+
+| 커밋 | 내용 |
+|---|---|
+| `2f5e21c` | `fix: 지도 이미지 경로, MCP 클라이언트 세션 재사용, RAG 연결 시험 버그 수정` — 아래 3개 코드 변경 + 이 보고서, `test` 브랜치에 로컬 커밋 완료 (원격 `origin/test`에는 아직 미push) |
+
+커밋에 포함된 파일: [backend/app/mcp_client/client.py](../../backend/app/mcp_client/client.py), [frontend/components/route_map.py](../../frontend/components/route_map.py), [tests/integration/rag_agent/test_rag_agent_integration.py](../../tests/integration/rag_agent/test_rag_agent_integration.py), 이 보고서 파일. `.env`는 `.gitignore`에 포함되어 있어 커밋 대상에서 제외됨(의도된 동작).
+
 ## 조치 요약 / 다음 액션
 
-1. ~~**[버그]** `frontend/components/route_map.py:11`의 지도 이미지 경로를 실제 파일명에 맞게 수정~~ → ✅ 완료 (2026-09-09, 작업 트리에 미커밋)
-2. ~~**[버그]** `McpClient`가 호출마다 세션을 새로 열어 반복 호출 시 타임아웃이 나는 문제~~ → ✅ 완료 (2026-09-09, 세션 재사용 리팩터링, 작업 트리에 미커밋)
-3. ~~**[버그]** RAG 연결 시험(n01/a01/a11)이 `rag_search`에 동기 함수를 잘못 연결 + A-11 단언문 자기모순~~ → ✅ 완료 (2026-09-09, `tests/integration/rag_agent/test_rag_agent_integration.py` 수정, 작업 트리에 미커밋)
-4. **[환경]** 루트 `requirements.txt`에 frontend 계열 의존성(`extra-streamlit-components`, `streamlit` 버전 상한)을 반영하거나, 셋업 문서에 "서비스별 `requirements.txt`를 모두 설치해야 함"을 명시
+1. ~~**[버그]** `frontend/components/route_map.py:11`의 지도 이미지 경로를 실제 파일명에 맞게 수정~~ → ✅ 완료·커밋됨 (`2f5e21c`)
+2. ~~**[버그]** `McpClient`가 호출마다 세션을 새로 열어 반복 호출 시 타임아웃이 나는 문제~~ → ✅ 완료·커밋됨 (`2f5e21c`, 세션 재사용 리팩터링)
+3. ~~**[버그]** RAG 연결 시험(n01/a01/a11)이 `rag_search`에 동기 함수를 잘못 연결 + A-11 단언문 자기모순~~ → ✅ 완료·커밋됨 (`2f5e21c`)
+4. **[환경]** 루트 `requirements.txt`에 frontend 계열 의존성(`extra-streamlit-components`, `streamlit` 버전 상한)을 반영하거나, 셋업 문서에 "서비스별 `requirements.txt`를 모두 설치해야 함"을 명시 — 미착수
 5. **[보류]** 26건 미검증 — 로컬 Docker(WSL2 미설치로 실패)와 사내망 `.env`(VPN 없이 접근 불가) 두 경로 모두 이 머신에서 막힘. VPN 연결 또는 WSL2 설치 중 하나가 준비되면 재실행 필요 (`.env`는 이미 사내망 값으로 작성돼 있고 `.gitignore`에 포함되어 있어 그대로 둠)
+6. **[선택]** 커밋 `2f5e21c`를 원격(`origin/test`)에 push할지 결정 — 아직 push 안 됨
 
 ---
 *생성: Claude Code · 2026-09-09*
