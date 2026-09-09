@@ -8,6 +8,7 @@ ApprovalService는 사용자 확인용 Pending Action만 생성한다.
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 from backend.app.agents.runtime import RuntimeSettings
 from backend.app.core import db as db_module
@@ -140,6 +141,18 @@ def create_app(
     application = FastAPI(
         title="Zoo Visit Guide API",
         version="0.3.0",
+    )
+    cors_origins = [
+        origin.strip()
+        for origin in settings.CORS_ALLOW_ORIGINS.split(",")
+        if origin.strip()
+    ]
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
     )
 
     application.include_router(

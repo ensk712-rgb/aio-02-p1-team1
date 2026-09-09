@@ -42,8 +42,7 @@ closure_items = _load_closure_items()
 
 if closure_items is None:
     st.warning("시설 목록을 불러올 수 없어 위치 안내를 표시할 수 없습니다.", icon=":material/warning:")
-    render_route_map()
-
+    render_route_map(None, closed_habitats=set())
 else:
     habitats = [item["habitat"] for item in closure_items]
     closed_habitats = {item["habitat"] for item in closure_items if item["closed"]}
