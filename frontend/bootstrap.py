@@ -52,6 +52,10 @@ class AgentClientProtocol(Protocol):
     def get_habitat_route(self, current: str, destination: str) -> dict[str, Any]: ...
     def get_closure_status(self, habitat: str | None = None) -> dict[str, Any]: ...
 
+    def analyze_animal_image(
+        self, image_bytes: bytes, *, filename: str, content_type: str
+    ) -> dict[str, Any]: ...
+
 
 load_dotenv(PROJECT_ROOT / ".env")
 AUTH_COOKIE = "zoo_auth_session"
