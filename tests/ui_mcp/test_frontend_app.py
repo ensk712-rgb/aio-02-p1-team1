@@ -209,8 +209,6 @@ def test_zoo_map_shows_closure_warning_for_closed_habitat(monkeypatch) -> None:
     at.selectbox(key="map_route_destination").set_value("코끼리관").run()
 
 
-    at.radio[0].set_value("코끼리관").run()
-
     assert not at.exception
     assert any("휴장 중입니다" in warning.value for warning in at.warning)
     assert any("시설 점검" in warning.value for warning in at.warning)
@@ -348,6 +346,14 @@ def test_additional_feature_pages_render(monkeypatch) -> None:
         at.run().switch_page(page).run()
         assert not at.exception
         assert any(expected in title.value for title in at.title)
+
+
+def test_voice_page_contains_agent_answer_controls() -> None:
+    source = (APP_PATH.parent / "app_pages" / "voice_assistant.py").read_text(encoding="utf-8")
+    assert "AI에게 질문하기" in source
+    assert "AI 안내 답변" in source
+    assert "답변 듣기" in source
+    assert "/api/agent/ask" in source
 
 
 def test_reservation_confirmation_can_be_cancelled(monkeypatch) -> None:
