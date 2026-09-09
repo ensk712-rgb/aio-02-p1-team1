@@ -80,7 +80,7 @@ def get_cookie_manager() -> stx.CookieManager:
 def get_client() -> AgentClientProtocol:
     if os.getenv("ZOO_UI_FAKE_MODE") == "1":
         return FakeAgentClient()
-    return AgentClient(os.getenv("BACKEND_URL", "http://127.0.0.1:8000"))
+    return AgentClient(os.getenv("BACKEND_URL", "http://192.100.200.198:8000/"))
 
 
 def initialize_state() -> None:

@@ -22,7 +22,6 @@ def render_sidebar(active: str) -> None:
         links = (
             ("app_pages/home.py", "홈", ":material/home:"),
             ("app_pages/animal_info.py", "동물 정보", ":material/pets:"),
-            ("app_pages/zoo_map.py", "지도", ":material/map:"),
             ("app_pages/feeding_schedule.py", "먹이주기 일정", ":material/calendar_month:"),
             ("app_pages/reservation.py", "체험 예약", ":material/confirmation_number:"),
             ("app_pages/route_recommendation.py", "관람 동선 추천", ":material/route:"),

@@ -15,7 +15,7 @@ render_sidebar("voice")
 st.title("음성 안내", icon=":material/mic:")
 st.caption("말한 질문을 글자로 바꾼 뒤 AI 가이드의 답변을 화면과 음성으로 확인합니다.")
 
-backend_url = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
+backend_url = os.getenv("BACKEND_URL", "http://192.100.200.198:8000/").rstrip("/")
 voice_html = """
 <style>
   body{font-family:Pretendard,'Malgun Gothic',sans-serif;color:#0e2a21;margin:0}

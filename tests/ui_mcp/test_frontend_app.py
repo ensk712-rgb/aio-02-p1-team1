@@ -81,7 +81,7 @@ def test_feature_pages_render_from_navigation(monkeypatch, page_path: str, expec
 
 def test_reservation_page_labels_live_backend_mode(monkeypatch) -> None:
     monkeypatch.setenv("ZOO_UI_FAKE_MODE", "0")
-    monkeypatch.setenv("BACKEND_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("BACKEND_URL", "http://192.100.200.198:8000/")
     at = AppTest.from_file(str(APP_PATH), default_timeout=10)
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
