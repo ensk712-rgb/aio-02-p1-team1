@@ -19,6 +19,7 @@ from backend.app.schemas.agent import (
 )
 from backend.app.schemas.common import Source, TraceItem
 from backend.app.schemas.tools import ToolCallRecord, ToolError, ToolRunResult
+from backend.app.tools.course_weather_policy import narrow_course_tools_by_weather
 from backend.app.tools.executor import ToolExecutor
 from backend.app.tools.policy import detect_forbidden_request
 
@@ -106,7 +107,7 @@ async def run_agent(
 
     try:
         return await asyncio.wait_for(
-            _run_loop(
+            _run_loop_with_weather_narrowing(
                 request=request,
                 profile=profile,
                 provider=provider,
@@ -141,6 +142,55 @@ async def run_agent(
             reason="runtime_error",
             answer="요청을 처리하는 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
         )
+
+
+async def _run_loop_with_weather_narrowing(
+    *,
+    request: AgentAskRequest,
+    profile: AgentProfile,
+    provider: ModelProvider,
+    executor: ToolExecutor,
+    settings: RuntimeSettings,
+    state: AgentState,
+    conversation_history: list[dict] | None = None,
+) -> AgentAskResponse:
+    """Tool 발견 전에 날씨를 선조회해 코스 Tool을 좁힌 뒤 본 루프를 실행한다.
+
+    P1-B 계획서 §6.2: zoo_guide의 모든 요청에 항상 적용한다(코스와 무관한
+    질문이라도 매번 실행) — Backend가 LLM 판단 전에 요청 의도를 미리 분류하는
+    단계 자체가 없기 때문이다(v0.4 §9.1). narrowing된 profile을 Tool 발견과
+    실행 검증 양쪽에 그대로 흘려보내야 "발견 단계만 막고 실행은 안 막는" 우회가
+    생기지 않는다 — 그래서 아래에서 만든 narrowed profile을 _run_loop에 그대로
+    전달한다(별도로 원본 profile을 다시 쓰지 않는다).
+    """
+    narrowing = await narrow_course_tools_by_weather(profile)
+
+    if narrowing.applied:
+        weather = narrowing.weather
+        state.trace.append(
+            TraceItem(
+                owner="runtime",
+                stage="course_tool_narrowed_by_weather",
+                data={
+                    "weather_lookup_succeeded": bool(weather and weather.success),
+                    "condition": (
+                        weather.data.get("condition")
+                        if weather and weather.success
+                        else None
+                    ),
+                },
+            )
+        )
+
+    return await _run_loop(
+        request=request,
+        profile=narrowing.profile,
+        provider=provider,
+        executor=executor,
+        settings=settings,
+        state=state,
+        conversation_history=conversation_history,
+    )
 
 
 async def _run_loop(

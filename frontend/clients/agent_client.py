@@ -115,6 +115,47 @@ class AgentClient:
             json={"decision": decision},
         )
 
+    def get_habitat_route(self, current: str, destination: str) -> dict[str, Any]:
+        """GET /api/tools/habitat-route를 호출한다(P1-B 계획서 §11.4, 15단계)."""
+        return self._request(
+            "GET",
+            "/api/tools/habitat-route",
+            params={"current": current, "destination": destination},
+        )
+
+    def get_closure_status(self, habitat: str | None = None) -> dict[str, Any]:
+        """GET /api/tools/closure-status를 호출한다(§11.3 "휴장 상태 반영", 15단계).
+
+        habitat을 생략하면 전체 시설의 휴장 상태를 items 목록으로 받는다.
+        """
+        params: dict[str, Any] = {}
+        if habitat is not None:
+            params["habitat"] = habitat
+        return self._request("GET", "/api/tools/closure-status", params=params)
+
+    def get_course_info(
+        self,
+        *,
+        available_minutes: int,
+        child_accompanying: bool = False,
+        current: str = "정문",
+    ) -> dict[str, Any]:
+        """GET /api/tools/course-info를 호출한다(P1-B 계획서 §11.4, 14단계).
+
+        scope는 넘기지 않는다 — 화면(관람 동선 추천)은 항상 §6.2와 같은
+        날씨 기반 자동 선택을 그대로 써야 채팅 화면과 같은 조건에서 다른
+        코스를 보여주지 않는다.
+        """
+        return self._request(
+            "GET",
+            "/api/tools/course-info",
+            params={
+                "available_minutes": available_minutes,
+                "child_accompanying": child_accompanying,
+                "current": current,
+            },
+        )
+
     def _request(
         self, method: str, path: str, *, allow_empty: bool = False, **kwargs: Any
     ) -> dict[str, Any]:

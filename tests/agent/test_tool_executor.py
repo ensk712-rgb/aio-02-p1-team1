@@ -196,3 +196,126 @@ def test_executor_stops_before_third_same_call() -> None:
     assert third_result.error.code == "REPEAT_LIMIT_REACHED"
     assert len(mcp_client.calls) == 2
     assert state.tool_attempts == 2
+
+
+# ---- P1-B 맞춤 코스 추천 Tool 4종 Runtime 검증 (7단계) ----
+
+
+def test_executor_runs_allowed_get_course_info_and_fills_defaults() -> None:
+    """CourseInfoInput의 기본값(child_accompanying=False, current="정문")이
+    MCP로 넘어가는 인자에도 채워져야 한다."""
+    mcp_client = FakeMcpClient()
+    executor = create_executor(mcp_client, [])
+
+    result = asyncio.run(
+        executor.execute_tool_safely(
+            "get_course_info",
+            {"available_minutes": 120},
+            profile=get_agent_profile("zoo_guide"),
+            state=create_state(),
+        )
+    )
+
+    assert result.success is True
+    assert mcp_client.calls == [
+        (
+            "get_course_info",
+            {"available_minutes": 120, "child_accompanying": False, "current": "정문"},
+        )
+    ]
+
+
+def test_executor_runs_allowed_get_indoor_course_info() -> None:
+    mcp_client = FakeMcpClient()
+    executor = create_executor(mcp_client, [])
+
+    result = asyncio.run(
+        executor.execute_tool_safely(
+            "get_indoor_course_info",
+            {"available_minutes": 90, "child_accompanying": True, "current": "정문"},
+            profile=get_agent_profile("zoo_guide"),
+            state=create_state(),
+        )
+    )
+
+    assert result.success is True
+    assert mcp_client.calls[0][0] == "get_indoor_course_info"
+
+
+def test_executor_runs_allowed_get_outdoor_course_info() -> None:
+    mcp_client = FakeMcpClient()
+    executor = create_executor(mcp_client, [])
+
+    result = asyncio.run(
+        executor.execute_tool_safely(
+            "get_outdoor_course_info",
+            {"available_minutes": 90},
+            profile=get_agent_profile("zoo_guide"),
+            state=create_state(),
+        )
+    )
+
+    assert result.success is True
+    assert mcp_client.calls[0][0] == "get_outdoor_course_info"
+
+
+def test_executor_runs_allowed_lookup_public_weather() -> None:
+    mcp_client = FakeMcpClient()
+    executor = create_executor(mcp_client, [])
+
+    result = asyncio.run(
+        executor.execute_tool_safely(
+            "lookup_public_weather",
+            {"region": "서울"},
+            profile=get_agent_profile("zoo_guide"),
+            state=create_state(),
+        )
+    )
+
+    assert result.success is True
+    assert mcp_client.calls == [("lookup_public_weather", {"region": "서울"})]
+
+
+def test_executor_blocks_invalid_course_info_arguments_without_execution() -> None:
+    """available_minutes에 문자열이 오면 MCP를 호출하지 않고 차단해야 한다."""
+    mcp_client = FakeMcpClient()
+    executor = create_executor(mcp_client, [])
+
+    result = asyncio.run(
+        executor.execute_tool_safely(
+            "get_course_info",
+            {"available_minutes": "백이십분"},
+            profile=get_agent_profile("zoo_guide"),
+            state=create_state(),
+        )
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.code == "INVALID_TOOL_ARGUMENTS"
+    assert mcp_client.calls == []
+
+
+def test_executor_course_info_still_requires_allowlist_entry() -> None:
+    """CourseInfoInput이 executor.py의 Schema 매핑에 등록돼 있어도, Profile의
+    allowed_tools에 없으면 여전히 차단돼야 한다 — Schema 등록(7단계)과
+    Allowlist 등록(8단계)은 별개 관문이다."""
+    mcp_client = FakeMcpClient()
+    executor = create_executor(mcp_client, [])
+    profile_without_course_tools = get_agent_profile("zoo_guide").model_copy(
+        update={"allowed_tools": ()}
+    )
+
+    result = asyncio.run(
+        executor.execute_tool_safely(
+            "get_course_info",
+            {"available_minutes": 120},
+            profile=profile_without_course_tools,
+            state=create_state(),
+        )
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.code == "TOOL_NOT_ALLOWED"
+    assert mcp_client.calls == []

@@ -117,6 +117,136 @@ class FakeAgentClient:
             "app_mode": "mock",
         }
 
+    _CLOSURES = [
+        {"habitat": "정문", "closed": False, "reason": None},
+        {"habitat": "호랑이관", "closed": False, "reason": None},
+        {"habitat": "해양관", "closed": False, "reason": None},
+        {"habitat": "코끼리관", "closed": True, "reason": "시설 점검으로 임시 휴장"},
+        {"habitat": "기린관", "closed": False, "reason": None},
+    ]
+
+    _ROUTES = {
+        ("정문", "호랑이관"): {"path": ["정문", "호랑이관"], "estimated_minutes": 10},
+        ("정문", "해양관"): {"path": ["정문", "해양관"], "estimated_minutes": 15},
+        ("정문", "코끼리관"): {"path": ["정문", "코끼리관"], "estimated_minutes": 12},
+        ("정문", "기린관"): {"path": ["정문", "기린관"], "estimated_minutes": 8},
+    }
+
+    def get_habitat_route(self, current: str, destination: str) -> dict[str, Any]:
+        """실제 routes.json(정문 기준 4개 구간)과 같은 값을 결정적으로 반환한다."""
+        now = datetime.now(timezone.utc)
+        if current == destination:
+            data = {
+                "current": current,
+                "destination": destination,
+                "path": [current],
+                "estimated_minutes": 0,
+                "as_of": now.isoformat(),
+            }
+            return {
+                "success": True,
+                "data": data,
+                "error": None,
+                "source": "mock_zoo_operations",
+                "retrieved_at": now.isoformat(),
+            }
+        route = self._ROUTES.get((current, destination))
+        if route is None:
+            return {
+                "success": False,
+                "data": {},
+                "error": {
+                    "code": "ROUTE_NOT_FOUND",
+                    "message": f"'{current}'에서 '{destination}'까지의 경로를 찾을 수 없습니다.",
+                },
+                "source": "mock_zoo_operations",
+                "retrieved_at": now.isoformat(),
+            }
+        return {
+            "success": True,
+            "data": {
+                "current": current,
+                "destination": destination,
+                "path": route["path"],
+                "estimated_minutes": route["estimated_minutes"],
+                "as_of": now.isoformat(),
+            },
+            "error": None,
+            "source": "mock_zoo_operations",
+            "retrieved_at": now.isoformat(),
+        }
+
+    def get_closure_status(self, habitat: str | None = None) -> dict[str, Any]:
+        """실제 closures.json(코끼리관만 휴장)과 같은 값을 결정적으로 반환한다."""
+        now = datetime.now(timezone.utc)
+        if habitat is None:
+            items = [dict(row) for row in self._CLOSURES]
+        else:
+            row = next((row for row in self._CLOSURES if row["habitat"] == habitat), None)
+            if row is None:
+                return {
+                    "success": False,
+                    "data": {},
+                    "error": {
+                        "code": "HABITAT_NOT_FOUND",
+                        "message": f"'{habitat}'은(는) 등록된 시설이 아닙니다.",
+                    },
+                    "source": "mock_zoo_operations",
+                    "retrieved_at": now.isoformat(),
+                }
+            items = [dict(row)]
+        return {
+            "success": True,
+            "data": {"items": items, "as_of": now.isoformat()},
+            "error": None,
+            "source": "mock_zoo_operations",
+            "retrieved_at": now.isoformat(),
+        }
+
+    def get_course_info(
+        self,
+        *,
+        available_minutes: int,
+        child_accompanying: bool = False,
+        current: str = "정문",
+    ) -> dict[str, Any]:
+        """GET /api/tools/course-info의 ToolRunResult 계약을 그대로 흉내 낸다.
+
+        UI 시험용으로 결정적인 2정거장 코스를 항상 반환한다(§7 표시 로직을
+        Fake 모드에서도 눈으로 확인할 수 있도록).
+        """
+        now = datetime.now(timezone.utc)
+        stops = [
+            {
+                "habitat": "해양관",
+                "travel_minutes": 15,
+                "visit_minutes": 25,
+                "cumulative_minutes": 40,
+            },
+            {
+                "habitat": "기린관",
+                "travel_minutes": 10,
+                "visit_minutes": 20,
+                "cumulative_minutes": 70,
+            },
+        ]
+        total_minutes = stops[-1]["cumulative_minutes"] if stops else 0
+        return {
+            "success": True,
+            "data": {
+                "current": current,
+                "available_minutes": available_minutes,
+                "facility_scope": "all",
+                "stops": stops,
+                "total_minutes": total_minutes,
+                "remaining_minutes": available_minutes - total_minutes,
+                "weather_lookup_succeeded": True,
+            },
+            "error": None,
+            "source": "mock_zoo_operations",
+            "retrieved_at": now.isoformat(),
+        }
+
 
     def ask(
         self,

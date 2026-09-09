@@ -30,6 +30,7 @@ from backend.app.routers.agent_router import create_agent_router
 from backend.app.routers.auth_router import create_auth_router
 from backend.app.routers.health_router import create_health_router
 from backend.app.routers.reservation_router import create_reservation_router
+from backend.app.routers.tools_router import create_tools_router
 from backend.app.schemas.tools import ToolRunResult as ExecutorToolRunResult
 from backend.app.services.agent_orchestration_service import AgentOrchestrationService
 from backend.app.services.approval_service import ApprovalService
@@ -173,6 +174,7 @@ def create_app(
             auth_sessions=auth_sessions,
         )
     )
+    application.include_router(create_tools_router())
 
     return application
 

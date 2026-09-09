@@ -20,8 +20,10 @@ from backend.app.schemas.agent import AgentState
 from backend.app.schemas.rag import RagInput
 from backend.app.schemas.tools import (
     ClosureStatusInput,
+    CourseInfoInput,
     FeedingScheduleInput,
     HabitatRouteInput,
+    PublicWeatherInput,
     ReservationToolInput,
     TicketScopeInput,
     ToolError,
@@ -271,6 +273,12 @@ class ToolExecutor:
                 "check_closure_status": ClosureStatusInput,
                 "find_habitat_route": HabitatRouteInput,
                 "lookup_ticket_scope": TicketScopeInput,
+                # P1-B 맞춤 코스 추천 Tool 3종은 CourseInfoInput 계약을 공유한다
+                # (P1-B 계획서 §5.1).
+                "get_course_info": CourseInfoInput,
+                "get_indoor_course_info": CourseInfoInput,
+                "get_outdoor_course_info": CourseInfoInput,
+                "lookup_public_weather": PublicWeatherInput,
                 RESERVATION_TOOL_NAME: ReservationToolInput,
             }
             input_model = input_models.get(name)

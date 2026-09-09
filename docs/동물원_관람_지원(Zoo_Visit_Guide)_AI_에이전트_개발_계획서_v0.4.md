@@ -787,8 +787,12 @@ idempotency_key = session_id + ":" + action_id
 | `GET`  | `/api/agent/stream?session_id=` | Agent 응답 스트림(SSE)                           | session 필요                   |
 | `POST` | `/api/media/stt`                | 음성을 텍스트로 변환                             | 선택 구현, Day-1 제외          |
 | `POST` | `/api/media/tts`                | 답변을 음성으로 변환                             | 선택 구현, Day-1 제외          |
+| `GET`  | `/api/tools/habitat-route?current=&destination=` | `find_habitat_route` 직접 실행(P1-B §11.4) | 게스트 세션 허용 |
+| `GET`  | `/api/tools/course-info?available_minutes=&child_accompanying=&current=&scope=` | 코스 추천 Tool 3종 직접 실행, `scope` 생략 시 §6.2 날씨 선조회로 자동 선택(P1-B §11.4) | 게스트 세션 허용 |
+| `GET`  | `/api/tools/closure-status?habitat=` | `check_closure_status` 직접 실행, `habitat` 생략 시 전체 시설 반환(P1-B §11.3·15단계) | 게스트 세션 허용 |
 
 > ⚠️ v0.2 대비 변경: `confirm`, SSE, STT/TTS를 Day-1 API에서 분리했습니다. Day-1은 `/api/health`, `/api/agent/ask`, `/api/admin/trace` 3개만으로 P0 시나리오(N-01~N-04, A-01~A-05, A-09~A-14) 전체를 시연할 수 있습니다.
+> `/api/tools/*` 3종은 Agent/LLM을 거치지 않는 조회 전용 엔드포인트로, `read` Tool과 동일한 수준의 접근을 허용해 인증 없이 게스트도 호출할 수 있다(P1-B 계획서 §11.4).
 
 ### 15.3 로그인·관리자 권한 정책(v0.4)
 

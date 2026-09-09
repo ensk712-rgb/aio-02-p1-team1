@@ -30,6 +30,17 @@ class AgentClientProtocol(Protocol):
     def confirm_reservation(self, auth_session_id: str, action_id: str, decision: str) -> dict[str, Any]: ...
     def get_my_reservations(self, auth_session_id: str) -> dict[str, Any]: ...
 
+    def get_course_info(
+        self,
+        *,
+        available_minutes: int,
+        child_accompanying: bool = False,
+        current: str = "정문",
+    ) -> dict[str, Any]: ...
+
+    def get_habitat_route(self, current: str, destination: str) -> dict[str, Any]: ...
+    def get_closure_status(self, habitat: str | None = None) -> dict[str, Any]: ...
+
 
 load_dotenv(PROJECT_ROOT / ".env")
 
@@ -46,7 +57,7 @@ def initialize_state() -> None:
         "session_id": None, "messages": [], "login_success": False,
         "user_id": None, "auth_session_id": None, "pending_reservation_action": None,
         "approval_processing": False, "approval_notice": None, "pending_question": None,
-        "chat_status": "ready",
+        "chat_status": "ready", "route_recommendation_result": None,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -73,4 +84,5 @@ def logout() -> None:
     st.session_state.approval_notice = None
     st.session_state.pending_question = None
     st.session_state.chat_status = "ready"
+    st.session_state.route_recommendation_result = None
     reset_conversation()
