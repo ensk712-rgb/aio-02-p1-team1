@@ -24,6 +24,10 @@ from backend.app.repositories import (
 from backend.app.repositories.auth_session_repository import AuthSessionRepository
 from backend.app.repositories.pending_action_repository import PendingActionRepository
 from backend.app.repositories.reservation_repository import ReservationRepository
+from backend.app.repositories.postgres_reservation_repository import (
+    PostgresPendingActionRepository,
+    PostgresReservationRepository,
+)
 from backend.app.repositories.user_repository import UserRepository
 from backend.app.routers.admin_router import create_admin_router
 from backend.app.routers.agent_router import create_agent_router
@@ -86,10 +90,22 @@ def create_app(
     auth_sessions = auth_sessions or AuthSessionRepository(
         ttl_seconds=settings.SESSION_TTL_SECONDS
     )
-    reservations = reservations or ReservationRepository()
-    pending_actions = pending_actions or PendingActionRepository(
-        ttl_seconds=settings.PENDING_TTL_SECONDS
-    )
+    if settings.use_persistent_reservations and (
+        reservations is None or pending_actions is None
+    ):
+        from backend.app.core.db import ensure_schema, get_connection_pool
+
+        pool = get_connection_pool(settings.DATABASE_URL)
+        ensure_schema(pool)
+        reservations = reservations or PostgresReservationRepository(pool)
+        pending_actions = pending_actions or PostgresPendingActionRepository(
+            ttl_seconds=settings.PENDING_TTL_SECONDS, pool=pool
+        )
+    else:
+        reservations = reservations or ReservationRepository()
+        pending_actions = pending_actions or PendingActionRepository(
+            ttl_seconds=settings.PENDING_TTL_SECONDS
+        )
 
     user_repository.initialize()
 

@@ -60,10 +60,9 @@ navigation = st.navigation(
     [
         st.Page("app_pages/home.py", title="홈", icon=":material/home:", default=True),
         st.Page("app_pages/animal_info.py", title="동물 정보", icon=":material/pets:"),
-        st.Page("app_pages/zoo_map.py", title="지도", icon=":material/map:"),
+        st.Page("app_pages/zoo_map.py", title="지도·맞춤 경로", icon=":material/map:"),
         st.Page("app_pages/feeding_schedule.py", title="먹이주기 일정", icon=":material/calendar_month:"),
         st.Page("app_pages/reservation.py", title="체험 예약", icon=":material/confirmation_number:"),
-        st.Page("app_pages/route_recommendation.py", title="관람 동선 추천", icon=":material/route:"),
         st.Page("app_pages/environment.py", title="날씨 정보", icon=":material/cloud:"),
         st.Page("app_pages/voice_assistant.py", title="음성 안내", icon=":material/mic:"),
         st.Page("app_pages/image_analysis.py", title="이미지 분석", icon=":material/image_search:"),

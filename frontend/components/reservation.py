@@ -59,6 +59,15 @@ def _render_notice() -> None:
 
 def render_reservation(client: AgentClientProtocol, *, expanded: bool = False) -> None:
     with st.expander("체험 예약 요청", icon=":material/event:", expanded=expanded):
+        if st.session_state.get("pending_reservation_action") is None:
+            try:
+                restored = client.get_pending_reservation(
+                    st.session_state.auth_session_id
+                ).get("pending_action")
+                if isinstance(restored, dict):
+                    st.session_state.pending_reservation_action = restored
+            except AgentClientError:
+                pass
         with st.form("reservation_request"):
             program = st.selectbox("프로그램", ["사육사 체험", "먹이주기 체험"], key="program")
             visit_time = st.selectbox("시간", ["11:00", "15:00"], key="visit_time")

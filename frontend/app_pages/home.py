@@ -24,9 +24,7 @@ with header_right:
 main, rail = st.columns([3.35, 1.05], gap="large")
 with main:
     render_hero()
-    with st.form("hero_question_form", border=False):
-        question = st.text_input("AI에게 물어보기", placeholder="예: 판다는 어디에 있어?", label_visibility="collapsed", key="hero_question")
-        hero_submitted = st.form_submit_button("AI에게 질문하기", icon=":material/arrow_forward:")
+    render_chat_panel(client)
 
     quick_columns = st.columns(3)
     quick_questions = (
@@ -46,13 +44,7 @@ with main:
     with cards[2]: render_animal_card()
     render_reservation(client)
 
-if hero_submitted and question.strip():
-    st.session_state.pending_question = question.strip()
-    st.rerun()
-
 with rail:
-    render_chat_panel(client)
-
     with st.container(border=True):
         st.subheader("실시간 혼잡도", icon=":material/groups:")
         st.progress(0.43, text="보통")

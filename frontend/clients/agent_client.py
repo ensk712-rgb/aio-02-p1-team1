@@ -129,6 +129,13 @@ class AgentClient:
             headers={"X-Auth-Session": auth_session_id},
         )
 
+    def get_pending_reservation(self, auth_session_id: str) -> dict[str, Any]:
+        return self._request(
+            "GET",
+            "/api/reservations/pending-action",
+            headers={"X-Auth-Session": auth_session_id},
+        )
+
     def confirm_reservation(
         self,
         auth_session_id: str,

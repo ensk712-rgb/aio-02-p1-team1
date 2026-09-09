@@ -1,18 +1,4 @@
----
-title: 동물원 관람 지원 AI 에이전트 개발 계획서
-project: Ranger Agent
-development_mode: 1인 순수 바이브코딩
-duration: 1일(P0 기준) / P1 포함 시 1.5~2일 권장
-scope: 로컬 시연용 MVP
-version: v0.4
-reviewed_by: 수석 AI 아키텍트
-review_basis: v0.3 구현 결과 및 권한 보완
-references:
-  - 01_agent-architecture-design-sample.md
-  - AI_Agent_개발_계획_가이드_요약.md
-  - 동물원_관람_지원_Zoo_Visit_Guide_AI_에이전트_개발_계획서_v0.2.md
----
-# 동물원 관람 지원(Zoo Visit Guide) AI 에이전트 개발 계획서_v0.4
+# 동물원 관람 지원(Zoo Visit Guide)_에이전트 아키텍처 설계서_v0.4
 
 본 문서는 샘플 설계서의 구조를 동물원 관람 지원 업무를 위한 AI Agent 개발 계획서다. 외부 계약이 필요한 기능은 결정적인 Mock 데이터로 구현하고, Local PC에서 개발·테스트·시연까지 완료하는 범위로 제한한다
 
@@ -901,3 +887,18 @@ idempotency_key = session_id + ":" + action_id
 | 로컬 실행                              | 상용 배포와 대규모 부하는 검증하지 않음                                            |
 | 제한된 Multimodal                      | Day-1 범위 밖, P1에서도 선택 기능으로 취급                                         |
 | `actor_id` 미사용                    | 게스트 환경에서 신뢰할 수 없는 값이므로 소유권 판정에서 제외,`session_id`로 대체 |
+
+---
+title: 동물원 관람 지원 AI 에이전트 개발 계획서
+project: Ranger Agent
+development_mode: 1인 순수 바이브코딩
+duration: 1일(P0 기준) / P1 포함 시 1.5~2일 권장
+scope: 로컬 시연용 MVP
+version: v0.4
+reviewed_by: 수석 AI 아키텍트
+review_basis: v0.3 구현 결과 및 권한 보완
+references:
+  - 01_agent-architecture-design-sample.md
+  - AI_Agent_개발_계획_가이드_요약.md
+  - 동물원_관람_지원_Zoo_Visit_Guide_AI_에이전트_개발_계획서_v0.2.md
+---

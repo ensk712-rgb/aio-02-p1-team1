@@ -76,6 +76,14 @@ def create_reservation_router(
     ) -> dict[str, list[dict[str, Any]]]:
         return {"items": reservations.list_for_user(require_user(auth_session_id))}
 
+    @router.get("/api/reservations/pending-action")
+    async def my_pending_action(
+        auth_session_id: Annotated[str | None, Header(alias="X-Auth-Session")] = None,
+    ) -> dict[str, Any]:
+        require_user(auth_session_id)
+        assert auth_session_id is not None
+        return {"pending_action": approvals.get_pending(session_id=auth_session_id)}
+
     @router.get("/api/admin/reservations/pending")
     async def pending_reservations(
         auth_session_id: Annotated[str | None, Header(alias="X-Auth-Session")] = None,

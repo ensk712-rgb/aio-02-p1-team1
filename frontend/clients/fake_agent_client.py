@@ -102,6 +102,9 @@ class FakeAgentClient:
     def get_my_reservations(self, auth_session_id: str) -> dict[str, Any]:
         return {"items": [dict(item) for item in self._reservations]}
 
+    def get_pending_reservation(self, auth_session_id: str) -> dict[str, Any]:
+        return {"pending_action": dict(self._pending_action) if self._pending_action else None}
+
     def get_pending_reservations(self, auth_session_id: str) -> dict[str, Any]:
         return {"items": [dict(item) for item in self._reservations if item["status"] == "pending"]}
 

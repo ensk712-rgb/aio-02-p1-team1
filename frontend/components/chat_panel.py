@@ -74,23 +74,10 @@ def render_chat_panel(client: AgentClientProtocol) -> None:
 
         _run_pending_question(client)
 
-        with st.container(height=350, border=False, key="chat_history"):
-            if not st.session_state.messages:
-                with st.chat_message("assistant", avatar=":material/eco:"):
-                    st.write("안녕하세요! 동물 정보, 먹이시간, 휴장 여부와 관람 경로를 물어보세요.")
-                    st.caption("아래 입력창이나 중앙의 빠른 질문을 이용할 수 있어요.")
-            for index, message in enumerate(st.session_state.messages):
-                avatar = ":material/eco:" if message["role"] == "assistant" else ":material/person:"
-                with st.chat_message(message["role"], avatar=avatar):
-                    if message["role"] == "assistant":
-                        render_agent_response(message["response"], key_prefix=f"chat_{index}")
-                    else:
-                        st.markdown(message["content"])
-
         with st.form("chat_panel_form", border=False, clear_on_submit=True):
             question = st.text_input(
                 "AI 가이드에게 질문하기",
-                placeholder="메시지를 보내세요",
+                placeholder="예: 판다는 어디에 있어?",
                 label_visibility="collapsed",
                 key="chat_message_input",
                 max_chars=2000,
@@ -104,3 +91,16 @@ def render_chat_panel(client: AgentClientProtocol) -> None:
         if submitted and question.strip():
             st.session_state.pending_question = question.strip()
             st.rerun()
+
+        with st.container(height=350, border=False, key="chat_history"):
+            if not st.session_state.messages:
+                with st.chat_message("assistant", avatar=":material/eco:"):
+                    st.write("안녕하세요! 동물 정보, 먹이시간, 휴장 여부와 관람 경로를 물어보세요.")
+                    st.caption("아래 입력창이나 중앙의 빠른 질문을 이용할 수 있어요.")
+            for index, message in enumerate(st.session_state.messages):
+                avatar = ":material/eco:" if message["role"] == "assistant" else ":material/person:"
+                with st.chat_message(message["role"], avatar=avatar):
+                    if message["role"] == "assistant":
+                        render_agent_response(message["response"], key_prefix=f"chat_{index}")
+                    else:
+                        st.markdown(message["content"])
