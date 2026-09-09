@@ -26,10 +26,14 @@ def render_sidebar(active: str) -> None:
             ("app_pages/feeding_schedule.py", "먹이주기 일정", ":material/calendar_month:"),
             ("app_pages/reservation.py", "체험 예약", ":material/confirmation_number:"),
             ("app_pages/route_recommendation.py", "관람 동선 추천", ":material/route:"),
-            ("app_pages/environment.py", "환경 상태", ":material/device_thermostat:"),
+            ("app_pages/environment.py", "날씨 정보", ":material/cloud:"),
+            ("app_pages/voice_assistant.py", "음성 안내", ":material/mic:"),
+            ("app_pages/image_analysis.py", "이미지 분석", ":material/image_search:"),
+            ("app_pages/notice.py", "안내 및 주의사항", ":material/info:"),
+            ("app_pages/refund.py", "취소 및 환불", ":material/receipt_long:"),
         )
         for path, label, icon in links:
-            st.page_link(path, label=label, icon=icon, use_container_width=True)
+            st.page_link(path, label=label, icon=icon, width="stretch")
         st.space("large")
         with st.container(border=True):
             st.markdown("**오늘의 한마디**")

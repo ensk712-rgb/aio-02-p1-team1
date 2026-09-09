@@ -10,7 +10,8 @@ import streamlit as st
 
 from frontend.bootstrap import get_client
 from frontend.clients.agent_client import AgentClientError
-from frontend.components.layout import IMAGE_DIR, render_page_hero, render_sidebar
+from frontend.components.layout import render_page_hero, render_sidebar
+from frontend.components.route_map import MAP_POINTS, render_route_map
 
 _SCOPE_NOTICE = {
     "indoor_only": "비 예보로 실내에서 관람 가능한 코스만 추천했습니다.",
@@ -32,6 +33,15 @@ def _render_course_result(data: dict) -> None:
     if not stops:
         st.warning(_EMPTY_RESULT_NOTICE, icon=":material/route:")
         return
+
+    route_names = [data.get("current", "정문")] + [stop["habitat"] for stop in stops]
+    render_route_map(
+        route_names,
+        segment_minutes=[int(stop["travel_minutes"]) for stop in stops],
+        total_minutes=sum(int(stop["travel_minutes"]) for stop in stops),
+        caption="운영 데이터 기반 추천 동선 · 실제 보행 시간은 다를 수 있습니다",
+    )
+    st.subheader("코스별 관람 계획", icon=":material/format_list_numbered:")
 
     position = data.get("current", "정문")
     for order, stop in enumerate(stops, start=1):
@@ -58,9 +68,9 @@ render_page_hero(
 )
 st.space("small")
 
-left, right = st.columns([1, 1.4], gap="large")
-with left:
-    with st.form("route_recommendation_form"):
+with st.form("route_recommendation_form"):
+    controls = st.columns([1, 1, 1], vertical_alignment="bottom")
+    with controls[0]:
         available_minutes = st.number_input(
             "관람 가능 시간(분)",
             min_value=10,
@@ -69,17 +79,13 @@ with left:
             step=10,
             key="route_available_minutes",
         )
+    with controls[1]:
+        current = st.selectbox("현재 위치", list(MAP_POINTS), key="route_current")
+    with controls[2]:
         child_accompanying = st.checkbox("아이 동반", key="route_child_accompanying")
-        current = st.text_input("현재 위치", value="정문", key="route_current")
         submitted = st.form_submit_button(
             "추천 동선 보기", icon=":material/route:", width="stretch"
         )
-with right:
-    st.image(
-        str(IMAGE_DIR / "예약승인 팜플릿 이미지2_전체 지도 맵.png"),
-        caption="추천 동선용 전체 지도",
-        width="stretch",
-    )
 
 if submitted:
     try:
@@ -103,3 +109,5 @@ if result:
             error.get("message") or "코스를 계산하지 못했습니다.",
             icon=":material/gpp_bad:",
         )
+else:
+    render_route_map(caption="관람 조건을 선택하면 이 지도에 추천 동선이 표시됩니다")

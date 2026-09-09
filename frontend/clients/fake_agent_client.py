@@ -37,6 +37,22 @@ class FakeAgentClient:
     def logout(self, auth_session_id: str) -> None:
         return None
 
+    def get_auth_session(self, auth_session_id: str) -> dict[str, Any]:
+        if not auth_session_id.startswith("auth_fake_"):
+            from frontend.clients.agent_client import AgentClientError
+            raise AgentClientError("유효하지 않거나 만료된 세션입니다.", kind="http")
+        user_id = "admin" if auth_session_id.endswith("admin") else "TEST"
+        return {"success": True, "user_id": user_id, "role": "admin" if user_id == "admin" else "user"}
+
+    def ask_stream(
+        self, message: str, session_id: str | None = None, *, auth_session_id: str | None = None
+    ):
+        response = self.ask(message, session_id, auth_session_id=auth_session_id)
+        answer = response.get("final_answer", "")
+        for start in range(0, len(answer), 12):
+            yield {"event": "delta", "data": {"text": answer[start:start + 12]}}
+        yield {"event": "done", "data": response}
+
     def create_reservation(self, auth_session_id: str, **payload: Any) -> dict[str, Any]:
         created_at = datetime.now(timezone.utc)
         item = {
@@ -115,6 +131,40 @@ class FakeAgentClient:
             "mcp": "ok",
             "storage": "memory",
             "app_mode": "mock",
+        }
+
+    def get_public_weather(self, region: str = "서울") -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        samples = [("clear", 27, 18, 10), ("cloudy", 25, 17, 30), ("rain", 22, 16, 70), ("clear", 26, 17, 15)]
+        forecast = [
+            {
+                "date": (now + timedelta(days=offset)).date().isoformat(),
+                "condition": condition,
+                "temperature_max_c": high,
+                "temperature_min_c": low,
+                "precipitation_probability_percent": rain,
+            }
+            for offset, (condition, high, low, rain) in enumerate(samples)
+        ]
+        return {
+            "success": True,
+            "data": {
+                "region": region,
+                "condition": "clear",
+                "indoor_recommended": False,
+                "current": {
+                    "temperature_c": 24.6,
+                    "apparent_temperature_c": 25.1,
+                    "humidity_percent": 54,
+                    "wind_speed_kmh": 7.2,
+                    "condition": "clear",
+                },
+                "forecast": forecast,
+                "as_of": now.isoformat(),
+            },
+            "error": None,
+            "source": "open_meteo_forecast",
+            "retrieved_at": now.isoformat(),
         }
 
     _CLOSURES = [

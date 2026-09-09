@@ -63,7 +63,7 @@ def test_home_dashboard_renders_design_sections(monkeypatch) -> None:
         ("app_pages/animal_info.py", "자이언트 판다"),
         ("app_pages/feeding_schedule.py", "현장 운영"),
         ("app_pages/reservation.py", "예약은 이렇게 진행돼요"),
-        ("app_pages/environment.py", "구역별 혼잡도"),
+        ("app_pages/environment.py", "일기예보"),
     ],
 )
 def test_feature_pages_render_from_navigation(monkeypatch, page_path: str, expected_text: str) -> None:
@@ -323,6 +323,23 @@ def test_logout_clears_route_recommendation_result(monkeypatch) -> None:
     at.button(key="logout_route").click().run()
     assert not at.exception
     assert at.session_state["route_recommendation_result"] is None
+
+
+def test_additional_feature_pages_render(monkeypatch) -> None:
+    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
+    for page, expected in (
+        ("app_pages/voice_assistant.py", "음성 안내"),
+        ("app_pages/image_analysis.py", "이미지 인식 분석"),
+        ("app_pages/notice.py", "안내 및 주의사항"),
+        ("app_pages/refund.py", "취소 및 환불"),
+    ):
+        at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+        at.session_state["login_success"] = True
+        at.session_state["user_id"] = "TEST"
+        at.session_state["auth_session_id"] = "auth_fake"
+        at.run().switch_page(page).run()
+        assert not at.exception
+        assert any(expected in title.value for title in at.title)
 
 
 def test_reservation_confirmation_can_be_cancelled(monkeypatch) -> None:

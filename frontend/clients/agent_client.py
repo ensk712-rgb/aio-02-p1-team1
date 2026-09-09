@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -33,6 +35,53 @@ class AgentClient:
         headers = {"X-Auth-Session": auth_session_id} if auth_session_id else {}
         return self._request("POST", "/api/agent/ask", json=payload, headers=headers)
 
+    def ask_stream(
+        self,
+        message: str,
+        session_id: str | None = None,
+        *,
+        auth_session_id: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        payload: dict[str, Any] = {"message": message}
+        if session_id:
+            payload["session_id"] = session_id
+        headers = {
+            "Accept": "text/event-stream",
+            **({"X-Auth-Session": auth_session_id} if auth_session_id else {}),
+        }
+        try:
+            with httpx.stream(
+                "POST",
+                f"{self._base_url}/api/agent/ask/stream",
+                json=payload,
+                headers=headers,
+                timeout=self._timeout,
+            ) as response:
+                response.raise_for_status()
+                event_name = "message"
+                data_lines: list[str] = []
+                for line in response.iter_lines():
+                    if not line:
+                        if data_lines:
+                            yield {
+                                "event": event_name,
+                                "data": json.loads("\n".join(data_lines)),
+                            }
+                        event_name, data_lines = "message", []
+                    elif line.startswith("event:"):
+                        event_name = line[6:].strip()
+                    elif line.startswith("data:"):
+                        data_lines.append(line[5:].strip())
+        except (httpx.TimeoutException, httpx.RequestError) as error:
+            raise AgentClientError(
+                "실시간 안내 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+                kind="connection",
+            ) from error
+        except (httpx.HTTPStatusError, json.JSONDecodeError) as error:
+            raise AgentClientError(
+                "실시간 응답을 처리하지 못했습니다.", kind="invalid_response"
+            ) from error
+
     def get_health(self) -> dict[str, Any]:
         return self._request("GET", "/api/health")
 
@@ -49,6 +98,13 @@ class AgentClient:
             "/api/auth/logout",
             headers={"X-Auth-Session": auth_session_id},
             allow_empty=True,
+        )
+
+    def get_auth_session(self, auth_session_id: str) -> dict[str, Any]:
+        return self._request(
+            "GET",
+            "/api/auth/session",
+            headers={"X-Auth-Session": auth_session_id},
         )
 
     def create_reservation(
@@ -155,6 +211,9 @@ class AgentClient:
                 "current": current,
             },
         )
+
+    def get_public_weather(self, region: str = "서울") -> dict[str, Any]:
+        return self._request("GET", "/api/tools/public-weather", params={"region": region})
 
     def _request(
         self, method: str, path: str, *, allow_empty: bool = False, **kwargs: Any

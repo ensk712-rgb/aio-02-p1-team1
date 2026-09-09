@@ -78,4 +78,9 @@ def create_tools_router() -> APIRouter:
             current=current,
         )
 
+    @router.get("/api/tools/public-weather", response_model=ToolRunResult)
+    async def public_weather(region: str = "서울") -> ToolRunResult:
+        """현재 날씨와 5일 예보를 사용자 화면에 제공한다."""
+        return zoo_tools.lookup_public_weather(region)
+
     return router

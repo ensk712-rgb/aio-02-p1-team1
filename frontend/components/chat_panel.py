@@ -18,11 +18,26 @@ def _run_pending_question(client: AgentClientProtocol) -> None:
     st.session_state.messages.append({"role": "user", "content": question.strip()})
     with st.status("동물원 안내 정보를 확인하고 있습니다…", state="running") as status:
         try:
-            response = client.ask(
-                question.strip(),
-                st.session_state.session_id,
+            streamed_text = ""
+            response = None
+            live_output = st.empty()
+            for event in client.ask_stream(
+                question.strip(), st.session_state.session_id,
                 auth_session_id=st.session_state.auth_session_id,
-            )
+            ):
+                if event.get("event") == "delta":
+                    streamed_text += str(event.get("data", {}).get("text", ""))
+                    live_output.markdown(streamed_text + " ▌")
+                elif event.get("event") == "done":
+                    response = event.get("data")
+                elif event.get("event") == "error":
+                    raise AgentClientError(
+                        str(event.get("data", {}).get("detail", "실시간 응답 오류")),
+                        kind="stream",
+                    )
+            live_output.empty()
+            if not isinstance(response, dict):
+                raise AgentClientError("실시간 응답이 완료되지 않았습니다.", kind="stream")
 
             session_id = response.get("session_id")
             if isinstance(session_id, str) and session_id:
