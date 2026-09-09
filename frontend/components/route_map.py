@@ -9,19 +9,25 @@ from pathlib import Path
 import streamlit as st
 
 MAP_IMAGE_PATH = (
+
+    Path(__file__).resolve().parents[1] / "image" / "zoo_animal_photo_map_v2.png"
+)
+MAP_VIEWBOX = (1448, 1086)
+
     Path(__file__).resolve().parents[2]
     / "docs"
     / "design"
     / "동물원_관람_지원_Zoo_Visit_Guide 동물원 지도 디자인 시안.png"
 )
+
 MAP_POINTS = {
-    "정문": (768, 848),
-    "호랑이관": (427, 184),
-    "해양관": (1082, 579),
-    "코끼리관": (1152, 177),
-    "기린관": (934, 166),
+    "정문": (724, 900),
+    "호랑이관": (728, 145),
+    "해양관": (294, 790),
+    "코끼리관": (997, 570),
+    "기린관": (1007, 345),
 }
-PLAZA_POINT = (770, 421)
+PLAZA_POINT = (724, 625)
 
 
 def _route_path(points: list[tuple[int, int]]) -> str:
@@ -108,7 +114,7 @@ def render_route_map(
         )
 
     overlay = (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1536 1024">'
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {MAP_VIEWBOX[0]} {MAP_VIEWBOX[1]}">'
         '<style>@keyframes draw{to{stroke-dashoffset:-720}}.route-line{animation:draw 13s linear infinite}</style>'
         f'{path_markup}{minute_markup}{marker_markup}</svg>'
     )

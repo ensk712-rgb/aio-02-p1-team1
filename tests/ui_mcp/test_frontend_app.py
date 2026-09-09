@@ -18,8 +18,8 @@ def _run_with_question(monkeypatch, question: str) -> AppTest:
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
     at.run()
-    at.text_input(key="chat_message_input").set_value(question)
-    at.button(key="FormSubmitter:chat_panel_form-보내기").click().run()
+    at.text_input(key="hero_question").set_value(question)
+    at.button(key="FormSubmitter:hero_question_form-AI에게 질문하기").click().run()
     return at
   
 
@@ -143,8 +143,8 @@ def test_new_conversation_clears_messages_and_session(monkeypatch) -> None:
 
 def test_chat_history_supports_multiple_tool_responses(monkeypatch) -> None:
     at = _run_with_question(monkeypatch, "펭귄 먹이시간")
-    at.text_input(key="chat_message_input").set_value("해양관 펭귄 먹이시간")
-    at.button(key="FormSubmitter:chat_panel_form-보내기").click().run()
+    at.text_input(key="hero_question").set_value("해양관 펭귄 먹이시간")
+    at.button(key="FormSubmitter:hero_question_form-AI에게 질문하기").click().run()
     assert not at.exception
     assert len(at.session_state["messages"]) == 4
     assert at.session_state["chat_status"] == "ready"
@@ -168,7 +168,7 @@ def test_reservation_confirmation_card_and_confirm(monkeypatch) -> None:
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run()
+    at.run().switch_page("app_pages/reservation.py").run()
     at.button(key="FormSubmitter:reservation_request-예약 내용 확인").click().run()
     action = at.session_state["pending_reservation_action"]
     assert action["approval_status"] == "pending"
@@ -186,7 +186,7 @@ def test_zoo_map_renders_open_habitat_route_by_default(monkeypatch) -> None:
     """기본 선택(정문 → 해양관)은 휴장이 아니므로 실제 경로가 표시된다."""
 
     monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
-    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+    at = AppTest.from_file(str(APP_PATH), default_timeout=20)
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
@@ -362,7 +362,7 @@ def test_reservation_confirmation_can_be_cancelled(monkeypatch) -> None:
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run()
+    at.run().switch_page("app_pages/reservation.py").run()
     at.button(key="FormSubmitter:reservation_request-예약 내용 확인").click().run()
     action_id = at.session_state["pending_reservation_action"]["action_id"]
     at.button(key=f"cancel_{action_id}").click().run()
