@@ -8,7 +8,12 @@ from pathlib import Path
 
 import streamlit as st
 
-MAP_IMAGE_PATH = Path(__file__).resolve().parents[2] / "docs" / "design" / "동물원 지도.png"
+MAP_IMAGE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "docs"
+    / "design"
+    / "동물원_관람_지원_Zoo_Visit_Guide 동물원 지도 디자인 시안.png"
+)
 MAP_POINTS = {
     "정문": (768, 848),
     "호랑이관": (427, 184),
