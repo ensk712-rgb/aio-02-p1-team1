@@ -1,17 +1,105 @@
-"""관람 동선 추천 화면."""
+"""관람 동선 추천 화면.
+
+P1-B 맞춤 코스 추천 개발계획서 §7·14단계 구현이다. Agent 채팅을 거치지 않고
+GET /api/tools/course-info(§11.4)를 직접 호출해, 코스 추천 Tool 3종(§5.0) 중
+하나가 반환한 구조화된 data를 그대로 렌더링한다 — Agent의 임의 문장을 쓰지
+않는다(v0.4 §3 "확인할 근거가 없으면 추측하지 않는다").
+"""
+
 import streamlit as st
-from frontend.components.layout import IMAGE_DIR, render_mock_notice, render_page_hero, render_sidebar
+
+from frontend.bootstrap import get_client
+from frontend.clients.agent_client import AgentClientError
+from frontend.components.layout import IMAGE_DIR, render_page_hero, render_sidebar
+
+_SCOPE_NOTICE = {
+    "indoor_only": "비 예보로 실내에서 관람 가능한 코스만 추천했습니다.",
+    "outdoor_only": "실외 관람 코스만 추천했습니다.",
+}
+_WEATHER_LOOKUP_FAILED_NOTICE = "날씨 정보를 확인하지 못해 실내·실외 코스를 모두 보여드립니다."
+_EMPTY_RESULT_NOTICE = "현재 조건에서 가능한 코스를 만들기 어렵습니다. 관람 시간을 늘리거나 조건을 조정해 주세요."
+
+
+def _render_course_result(data: dict) -> None:
+    facility_scope = data.get("facility_scope")
+    notice = _SCOPE_NOTICE.get(facility_scope)
+    if notice:
+        st.info(notice, icon=":material/info:")
+    elif facility_scope == "all" and data.get("weather_lookup_succeeded") is False:
+        st.warning(_WEATHER_LOOKUP_FAILED_NOTICE, icon=":material/cloud_off:")
+
+    stops = data.get("stops") or []
+    if not stops:
+        st.warning(_EMPTY_RESULT_NOTICE, icon=":material/route:")
+        return
+
+    position = data.get("current", "정문")
+    for order, stop in enumerate(stops, start=1):
+        with st.container(border=True):
+            cols = st.columns([0.5, 2, 1, 1, 1], vertical_alignment="center")
+            cols[0].markdown(f"### {order}")
+            cols[1].markdown(f"**{position} → {stop['habitat']}**")
+            cols[2].metric("이동", f"{stop['travel_minutes']}분")
+            cols[3].metric("관람", f"{stop['visit_minutes']}분")
+            cols[4].metric("누적", f"{stop['cumulative_minutes']}분")
+        position = stop["habitat"]
+
+    total = data.get("total_minutes", 0)
+    remaining = data.get("remaining_minutes", 0)
+    st.caption(f"총 소요 시간 · {total}분 / 남는 시간 · {remaining}분")
+
 
 render_sidebar("route")
-render_page_hero("나만의 하루를 디자인하세요", "관람 시간과 관심 동물에 맞춰 편안한 추천 동선을 골라보세요.", "지도서비스 이미지3.png", "SMART ROUTE")
+render_page_hero(
+    "나만의 하루를 디자인하세요",
+    "관람 시간과 조건에 맞춰 실제 운영 데이터 기반 추천 동선을 확인해보세요.",
+    "지도서비스 이미지3.png",
+    "SMART ROUTE",
+)
 st.space("small")
-left, right = st.columns([1,1.4], gap="large")
+
+left, right = st.columns([1, 1.4], gap="large")
 with left:
-    duration = st.segmented_control("관람 시간", ["90분", "2시간 30분", "반일"], default="2시간 30분")
-    priority = st.multiselect("꼭 만나고 싶은 동물", ["판다", "기린", "펭귄", "코끼리", "호랑이"], default=["판다", "기린"])
-    st.metric("예상 이동", "3.2 km", "휴식 2회 포함")
+    with st.form("route_recommendation_form"):
+        available_minutes = st.number_input(
+            "관람 가능 시간(분)",
+            min_value=10,
+            max_value=600,
+            value=120,
+            step=10,
+            key="route_available_minutes",
+        )
+        child_accompanying = st.checkbox("아이 동반", key="route_child_accompanying")
+        current = st.text_input("현재 위치", value="정문", key="route_current")
+        submitted = st.form_submit_button(
+            "추천 동선 보기", icon=":material/route:", width="stretch"
+        )
 with right:
-    st.image(str(IMAGE_DIR / "예약승인 팜플릿 이미지2_전체 지도 맵.png"), caption="추천 동선용 전체 지도", width="stretch")
-st.html('<div class="zoo-route">입구 → 🦒 사바나 → 🐼 판다월드 → ☕ 휴식 → 🐧 펭귄 빌리지</div>')
-st.caption(f"선택: {duration} · 관심 동물 {', '.join(priority) if priority else '전체'}")
-render_mock_notice()
+    st.image(
+        str(IMAGE_DIR / "예약승인 팜플릿 이미지2_전체 지도 맵.png"),
+        caption="추천 동선용 전체 지도",
+        width="stretch",
+    )
+
+if submitted:
+    try:
+        response = get_client().get_course_info(
+            available_minutes=int(available_minutes),
+            child_accompanying=child_accompanying,
+            current=current or "정문",
+        )
+        st.session_state["route_recommendation_result"] = response
+    except AgentClientError as error:
+        st.session_state["route_recommendation_result"] = None
+        st.error(str(error), icon=":material/gpp_bad:")
+
+result = st.session_state.get("route_recommendation_result")
+if result:
+    if result.get("success"):
+        _render_course_result(result.get("data", {}))
+    else:
+        error = result.get("error") or {}
+        st.error(
+            error.get("message") or "코스를 계산하지 못했습니다.",
+            icon=":material/gpp_bad:",
+        )

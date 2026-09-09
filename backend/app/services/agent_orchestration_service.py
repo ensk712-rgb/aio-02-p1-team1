@@ -100,10 +100,6 @@ class AgentOrchestrationService:
             auth_session_id
         )
 
-        reservation_user_id = self._resolve_reservation_user_id(
-            auth_session_id
-        )
-
         response = await run_agent(
             request_with_session,
             profile,

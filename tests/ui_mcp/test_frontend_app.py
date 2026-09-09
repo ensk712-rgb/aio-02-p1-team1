@@ -61,10 +61,8 @@ def test_home_dashboard_renders_design_sections(monkeypatch) -> None:
     ("page_path", "expected_text"),
     [
         ("app_pages/animal_info.py", "자이언트 판다"),
-        ("app_pages/zoo_map.py", "빠른 위치 찾기"),
         ("app_pages/feeding_schedule.py", "현장 운영"),
         ("app_pages/reservation.py", "예약은 이렇게 진행돼요"),
-        ("app_pages/route_recommendation.py", "선택:"),
         ("app_pages/environment.py", "구역별 혼잡도"),
     ],
 )
@@ -181,6 +179,150 @@ def test_reservation_confirmation_card_and_confirm(monkeypatch) -> None:
     assert not at.exception
     assert at.session_state["pending_reservation_action"] is None
     assert any("관리자에게 전달" in success.value for success in at.success)
+
+
+def test_zoo_map_renders_open_habitat_route_by_default(monkeypatch) -> None:
+    """기본 선택(첫 구역, 호랑이관)은 휴장이 아니므로 실제 경로가 표시된다."""
+    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
+    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+    at.session_state["login_success"] = True
+    at.session_state["user_id"] = "TEST"
+    at.session_state["auth_session_id"] = "auth_fake"
+    at.run().switch_page("app_pages/zoo_map.py").run()
+    assert not at.exception
+    labels = [option for radio in at.radio for option in radio.options]
+    assert labels == ["호랑이관", "해양관", "코끼리관 (휴장)", "기린관"]
+    assert any("정문 → 호랑이관 · 도보 약 10분" in success.value for success in at.success)
+
+
+def test_zoo_map_shows_closure_warning_for_closed_habitat(monkeypatch) -> None:
+    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
+    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+    at.session_state["login_success"] = True
+    at.session_state["user_id"] = "TEST"
+    at.session_state["auth_session_id"] = "auth_fake"
+    at.run().switch_page("app_pages/zoo_map.py").run()
+    at.radio[0].set_value("코끼리관").run()
+    assert not at.exception
+    assert any("휴장 중입니다" in warning.value for warning in at.warning)
+    assert any("시설 점검" in warning.value for warning in at.warning)
+    assert not at.success
+
+
+def test_route_recommendation_renders_form_without_calling_backend(monkeypatch) -> None:
+    """제출 전에는 Client를 호출하지 않고 입력 폼만 보여준다."""
+    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
+    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+    at.session_state["login_success"] = True
+    at.session_state["user_id"] = "TEST"
+    at.session_state["auth_session_id"] = "auth_fake"
+    at.run().switch_page("app_pages/route_recommendation.py").run()
+    assert not at.exception
+    assert at.number_input(key="route_available_minutes") is not None
+    assert at.session_state["route_recommendation_result"] is None
+
+
+def test_route_recommendation_submit_renders_fake_course_result(monkeypatch) -> None:
+    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
+    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+    at.session_state["login_success"] = True
+    at.session_state["user_id"] = "TEST"
+    at.session_state["auth_session_id"] = "auth_fake"
+    at.run().switch_page("app_pages/route_recommendation.py").run()
+    at.button(key="FormSubmitter:route_recommendation_form-추천 동선 보기").click().run()
+    assert not at.exception
+    result = at.session_state["route_recommendation_result"]
+    assert result["success"] is True
+    assert result["data"]["facility_scope"] == "all"
+    assert any("해양관" in item.value for item in at.markdown)
+    assert any("총 소요 시간" in item.value for item in at.caption)
+
+
+def test_route_recommendation_shows_empty_result_notice(monkeypatch) -> None:
+    """stops=[]일 때 실패처럼 보이지 않는 안내 문구를 표시한다(§7)."""
+    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
+    from frontend.clients.fake_agent_client import FakeAgentClient
+
+    def _empty_course_info(self, *, available_minutes, child_accompanying=False, current="정문"):
+        return {
+            "success": True,
+            "data": {
+                "current": current,
+                "available_minutes": available_minutes,
+                "facility_scope": "all",
+                "stops": [],
+                "total_minutes": 0,
+                "remaining_minutes": available_minutes,
+                "weather_lookup_succeeded": True,
+            },
+            "error": None,
+            "source": "mock_zoo_operations",
+            "retrieved_at": "2026-09-09T00:00:00+00:00",
+        }
+
+    monkeypatch.setattr(FakeAgentClient, "get_course_info", _empty_course_info)
+    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+    at.session_state["login_success"] = True
+    at.session_state["user_id"] = "TEST"
+    at.session_state["auth_session_id"] = "auth_fake"
+    at.run().switch_page("app_pages/route_recommendation.py").run()
+    at.button(key="FormSubmitter:route_recommendation_form-추천 동선 보기").click().run()
+    assert not at.exception
+    assert any("가능한 코스를 만들기 어렵습니다" in warning.value for warning in at.warning)
+
+
+def test_route_recommendation_shows_indoor_only_notice(monkeypatch) -> None:
+    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
+    from frontend.clients.fake_agent_client import FakeAgentClient
+
+    def _indoor_only_course_info(self, *, available_minutes, child_accompanying=False, current="정문"):
+        return {
+            "success": True,
+            "data": {
+                "current": current,
+                "available_minutes": available_minutes,
+                "facility_scope": "indoor_only",
+                "stops": [
+                    {
+                        "habitat": "해양관",
+                        "travel_minutes": 15,
+                        "visit_minutes": 25,
+                        "cumulative_minutes": 40,
+                    }
+                ],
+                "total_minutes": 40,
+                "remaining_minutes": available_minutes - 40,
+            },
+            "error": None,
+            "source": "mock_zoo_operations",
+            "retrieved_at": "2026-09-09T00:00:00+00:00",
+        }
+
+    monkeypatch.setattr(FakeAgentClient, "get_course_info", _indoor_only_course_info)
+    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+    at.session_state["login_success"] = True
+    at.session_state["user_id"] = "TEST"
+    at.session_state["auth_session_id"] = "auth_fake"
+    at.run().switch_page("app_pages/route_recommendation.py").run()
+    at.button(key="FormSubmitter:route_recommendation_form-추천 동선 보기").click().run()
+    assert not at.exception
+    assert any("실내에서 관람 가능한 코스만" in info.value for info in at.info)
+
+
+def test_logout_clears_route_recommendation_result(monkeypatch) -> None:
+    """로그아웃 후 다른 계정으로 들어와도 이전 사용자의 코스 카드가 남지 않아야 한다."""
+    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
+    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+    at.session_state["login_success"] = True
+    at.session_state["user_id"] = "TEST"
+    at.session_state["auth_session_id"] = "auth_fake"
+    at.run().switch_page("app_pages/route_recommendation.py").run()
+    at.button(key="FormSubmitter:route_recommendation_form-추천 동선 보기").click().run()
+    assert at.session_state["route_recommendation_result"] is not None
+
+    at.button(key="logout_route").click().run()
+    assert not at.exception
+    assert at.session_state["route_recommendation_result"] is None
 
 
 def test_reservation_confirmation_can_be_cancelled(monkeypatch) -> None:

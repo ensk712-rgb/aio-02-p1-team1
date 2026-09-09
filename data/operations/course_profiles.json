@@ -1,0 +1,28 @@
+{
+  "profiles": [
+    {
+      "habitat": "해양관",
+      "visit_minutes": 25,
+      "child_friendly": true,
+      "indoor": true
+    },
+    {
+      "habitat": "기린관",
+      "visit_minutes": 20,
+      "child_friendly": true,
+      "indoor": false
+    },
+    {
+      "habitat": "코끼리관",
+      "visit_minutes": 20,
+      "child_friendly": true,
+      "indoor": false
+    },
+    {
+      "habitat": "호랑이관",
+      "visit_minutes": 15,
+      "child_friendly": false,
+      "indoor": false
+    }
+  ]
+}
