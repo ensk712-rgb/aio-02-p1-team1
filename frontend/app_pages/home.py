@@ -4,9 +4,15 @@ import streamlit as st
 
 from frontend.bootstrap import get_client, logout, reset_conversation
 from frontend.components.chat_panel import render_chat_panel
-from frontend.components.dashboard import current_time_label, render_animal_card, render_feeding_card, render_hero, render_route_card
+from frontend.components.dashboard import (
+    current_time_label,
+    render_animal_card,
+    render_crowding_card,
+    render_feeding_card,
+    render_hero,
+    render_route_card,
+)
 from frontend.components.layout import render_sidebar
-from frontend.components.reservation import render_reservation
 
 client = get_client()
 render_sidebar("home")
@@ -21,31 +27,45 @@ with header_right:
         st.button("새 대화", icon=":material/refresh:", on_click=reset_conversation, key="new_conversation")
         st.button("로그아웃", icon=":material/logout:", on_click=logout, key="logout")
 
-main, rail = st.columns([3.35, 1.05], gap="large")
-with main:
-    render_hero()
-    render_chat_panel(client)
-
-    quick_columns = st.columns(3)
-    quick_questions = (
-        ("인기 동물은?", "판다는 어디에서 무엇을 먹어?"),
-        ("오늘의 먹이주기", "해양관 펭귄 먹이시간을 알려줘"),
-        ("추천 관람 동선", "정문에서 해양관까지 가는 경로를 알려줘"),
+render_hero()
+with st.form("hero_question_form", border=False):
+    question = st.text_input(
+        "AI에게 물어보기",
+        placeholder="예: 판다는 어디에 있어?",
+        label_visibility="collapsed",
+        key="hero_question",
+        max_chars=2000,
     )
-    for column, (label, prompt) in zip(quick_columns, quick_questions):
-        with column:
-            if st.button(label, width="stretch", key=f"quick_{label}"):
-                st.session_state.pending_question = prompt
-                st.rerun()
+    hero_submitted = st.form_submit_button(
+        "AI에게 질문하기",
+        icon=":material/arrow_forward:",
+        disabled=st.session_state.get("chat_status") == "processing",
+    )
 
-    cards = st.columns(3)
-    with cards[0]: render_feeding_card()
-    with cards[1]: render_route_card()
-    with cards[2]: render_animal_card()
-    render_reservation(client)
+if hero_submitted and question.strip():
+    st.session_state.pending_question = question.strip()
+    st.rerun()
 
-with rail:
-    with st.container(border=True):
-        st.subheader("실시간 혼잡도", icon=":material/groups:")
-        st.progress(0.43, text="보통")
-        st.caption("오전 시간대에는 여유롭게 관람할 수 있어요. · 시연용 Mock")
+render_chat_panel(client)
+
+quick_columns = st.columns(3)
+quick_questions = (
+    ("인기 동물은?", "판다는 어디에서 무엇을 먹어?"),
+    ("오늘의 먹이주기", "해양관 펭귄 먹이시간을 알려줘"),
+    ("추천 관람 동선", "정문에서 해양관까지 가는 경로를 알려줘"),
+)
+for column, (label, prompt) in zip(quick_columns, quick_questions):
+    with column:
+        if st.button(label, width="stretch", key=f"quick_{label}"):
+            st.session_state.pending_question = prompt
+            st.rerun()
+
+cards = st.columns(4)
+with cards[0]:
+    render_feeding_card()
+with cards[1]:
+    render_route_card()
+with cards[2]:
+    render_animal_card()
+with cards[3]:
+    render_crowding_card()

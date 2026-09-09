@@ -102,14 +102,14 @@ class FakeAgentClient:
     def get_my_reservations(self, auth_session_id: str) -> dict[str, Any]:
         return {"items": [dict(item) for item in self._reservations]}
 
-    def get_pending_reservation(self, auth_session_id: str) -> dict[str, Any]:
-        return {"pending_action": dict(self._pending_action) if self._pending_action else None}
-
     def get_pending_reservations(self, auth_session_id: str) -> dict[str, Any]:
         return {"items": [dict(item) for item in self._reservations if item["status"] == "pending"]}
 
     def get_admin_trace(self, auth_session_id: str, session_id: str) -> dict[str, Any]:
         return {
+            "session_id": session_id,
+            "detail_expired": False,
+            "summary": {"session_id": session_id, "status": "completed"},
             "runs": [
                 {
                     "run_id": "run_fake_001",
@@ -120,6 +120,19 @@ class FakeAgentClient:
                     ],
                 }
             ] if session_id else []
+        }
+
+    def list_admin_trace_sessions(self, auth_session_id: str) -> dict[str, Any]:
+        return {
+            "sessions": [
+                {
+                    "session_id": "guest-test",
+                    "last_run_at": "2026-09-09T03:00:00+00:00",
+                    "status": "completed",
+                    "question_preview": "펭귄 먹이시간을 알려줘",
+                    "tools": ["get_feeding_schedule"],
+                }
+            ]
         }
 
     def decide_reservation(self, auth_session_id: str, action_id: str, decision: str) -> dict[str, Any]:
@@ -253,6 +266,19 @@ class FakeAgentClient:
             "data": {"items": items, "as_of": now.isoformat()},
             "error": None,
             "source": "mock_zoo_operations",
+            "retrieved_at": now.isoformat(),
+        }
+
+    def analyze_animal_image(
+        self, image_bytes: bytes, *, filename: str, content_type: str
+    ) -> dict[str, Any]:
+        """실제 Vision 호출 없이 결정적인 분석 문장을 돌려준다."""
+        now = datetime.now(timezone.utc)
+        return {
+            "success": True,
+            "data": {"analysis": "사진 속 동물은 자이언트 판다로 추정됩니다. (Fake 모드)"},
+            "error": None,
+            "source": "vision_animal_image",
             "retrieved_at": now.isoformat(),
         }
 

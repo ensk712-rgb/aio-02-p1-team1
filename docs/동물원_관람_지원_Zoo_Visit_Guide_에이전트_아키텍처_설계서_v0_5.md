@@ -1,26 +1,29 @@
-# 동물원 관람 지원(Zoo Visit Guide)_에이전트 아키텍처 설계서_v0.4
+# 동물원 관람 지원(Zoo Visit Guide)_에이전트 아키텍처 설계서_v0.5
 
-본 문서는 샘플 설계서의 구조를 동물원 관람 지원 업무를 위한 AI Agent 개발 계획서다. 외부 계약이 필요한 기능은 결정적인 Mock 데이터로 구현하고, Local PC에서 개발·테스트·시연까지 완료하는 범위로 제한한다
+본 문서는 동물원 관람 지원 업무를 위한 AI Agent 개발 계획서다. 외부 계약이 필요한 기능은 결정적인 Mock 데이터로 구현하고, Local PC에서 개발·테스트·시연까지 완료하는 범위로 제한한다.
 
-v0.4는 구현 결과를 반영해 사용자·관리자 최소 로그인, 관리자 예약 권한 분리와 Trace 화면을 추가한다. 또한 예약은 Backend 로컬 변경 Tool로만 처리하고 MCP는 조회 Tool 전용으로 사용하는 것으로 구조를 확정한다.
+사용자·관리자 최소 로그인, 관리자 예약 권한 분리와 Trace 화면을 추가한다. 또한 예약은 Backend 로컬 변경 Tool로만 처리하고 MCP는 조회 Tool 전용으로 사용하는 것으로 구조를 확정한다.
+
+맞춤 코스 추천(Course Recommendation) 서브플랜(P1-B, v1.9)의 확정과 2026-09-09 `origin/test` 병합 이력을 반영한다. 코스 추천 Tool 3종과 날씨 조회 Tool의 실제 계약은 P1로 유지하고, PostgreSQL DB 마이그레이션, 예약 영속화·Vision 이미지 분석·관리자 Trace UX·STT/TTS·관람객 화면 확장은 추가 구현 P2로 분리한다.
 
 ## 1. 프로젝트 개요
 
-| 항목          | 내용                                                                                                         |
-| ------------- | ------------------------------------------------------------------------------------------------------------ |
-| 프로젝트명    | 동물원 관람 지원 AI 에이전트(Zoo Visit Guide AI Agent) 개발                                                  |
-| Agent ID      | `zoo_guide`                                                                                                |
-| 목적          | 관람객 질문을 판단해 공식 문서를 검색하거나 동물원 운영 Tool을 호출하고, 근거가 포함된 관람 안내를 제공한다. |
-| 대표 사용자   | 일반 관람객, 어린이 동반 가족, 이동 편의가 필요한 관람객                                                     |
-| 핵심 기능(P0) | 동물 정보 RAG, 먹이시간·휴장·경로 조회                                                                     |
-| 확장 기능(P1) | 티켓·날씨 조회, 맞춤 코스 안내, 예약 승인, 세션 Memory                                                      |
-| Agent 실행    | LLM이 질문과 Tool Result를 보고 다음 Tool 또는 최종 답변을 판단한다.                                         |
-| Backend 통제  | Python Backend가 Tool Allowlist, arguments 검증, 승인, 반복과 종료를 통제한다.                               |
-| Tool 연결     | Streamable HTTP MCP Server                                                                                   |
-| Backend       | FastAPI                                                                                                      |
-| Frontend      | Streamlit                                                                                                    |
-| 기본 데이터   | 샘플 동물 문서와 결정적인 Mock 운영 데이터                                                                   |
-| 페르소나      | 동물 생태·시설·운영 일정을 이해하는 친절하고 숙련된 동물원 안내 레인저                                     |
+| 항목          | 내용                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 프로젝트명    | 동물원 관람 지원(Zoo Visit Guide) 에이전트 개발                                                                                |
+| Agent ID      | `zoo_guide`                                                                                                                   |
+| 목적          | 관람객 질문을 판단해 공식 문서를 검색하거나 동물원 운영 Tool을 호출하고, 근거가 포함된 관람 안내 제공                           |
+| 대표 사용자   | 일반 관람객, 어린이 동반 가족, 이동 편의가 필요한 관람객                                                                        |
+| 핵심 기능(P0) | 동물 정보 RAG, 먹이시간·휴장·경로 조회                                                                                        |
+| 확장 기능(P1) | 티켓·날씨 조회, 맞춤 코스 안내, 예약 승인, 세션 Memory                                                                         |
+| 추가 구현(P2) | 예약/Pending Action 영속화, Vision 이미지 분석, 관리자 Trace UX, SSE, STT/TTS, 다중 관람 정보 화면, PostgreSQL DB 마이그레이션 |
+| Agent 실행    | LLM이 질문과 Tool Result를 보고 다음 Tool 또는 최종 답변 판단                                                                   |
+| Backend 통제  | Python Backend가 Tool Allowlist, arguments 검증, 승인, 반복과 종료를 통제                                                       |
+| Tool 연결     | Streamable HTTP MCP Server                                                                                                      |
+| Backend       | FastAPI                                                                                                                         |
+| Frontend      | Streamlit                                                                                                                       |
+| 기본 데이터   | 샘플 동물 문서와 결정적인 Mock 운영 데이터                                                                                      |
+| 페르소나      | 동물 생태·시설·운영 일정을 이해하는 친절하고 숙련된 동물원 안내 레인저                                                        |
 
 ### 대표 요청
 
@@ -36,36 +39,33 @@ v0.4는 구현 결과를 반영해 사용자·관리자 최소 로그인, 관리
 
 ### 2.1 포함 범위(In-Scope)
 
-| 영역           | 포함 내용                                          | 우선순위     | 비고                                        |
-| -------------- | -------------------------------------------------- | ------------ | ------------------------------------------- |
-| 단일 Agent     | 관람 지원 Agent 하나만 등록·실행                  | **P0** | 필수                                        |
-| RAG            | 동물 정보카드 검색(3~5건)                          | **P0** | 인메모리/키워드 검색으로 시작               |
-| 조회 Tool      | 먹이시간, 휴장, 경로                               | **P0** | 3종                                         |
-| Trace          | 판단, 검색, Tool, 종료 기록                        | **P0** | 응답에 포함                                 |
-| MCP            | 최소 한 개 이상의 조회 Tool을 별도 프로세스로 호출 | **P0** | 필수 시연                                   |
-| Frontend       | 채팅, 출처, Tool 결과 표시                         | **P0** | 단일 Streamlit 화면, 동기 HTTP              |
-| 조회 Tool 확장 | 티켓 범위, 날씨                                    | P1           | 시간 남으면 추가                            |
-| 개인화         | 아이 동반, 관람 시간, 이동 조건을 질문에 반영      | P1           | 간단한 구조화 입력                          |
-| 예약           | 예약 내용을 보여주고 확인 후 실행                  | P1           | Mock 상태 변경 + 승인 워크플로우            |
-| Memory         | 같은 세션의 최근 대화와 관람 조건 유지             | P1           | In-Memory dict로 우선 구현, Redis는 그 다음 |
+| 영역           | 포함 내용                                              | 우선순위     | 비고                                        |
+| -------------- | ------------------------------------------------------ | ------------ | ------------------------------------------- |
+| 단일 Agent     | 관람 지원 Agent 하나만 등록·실행                      | **P0** | 필수                                        |
+| RAG            | 동물 정보카드 검색(3~5건)                              | **P0** | 인메모리/키워드 검색으로 시작               |
+| 조회 Tool      | 먹이시간, 휴장, 경로                                   | **P0** | 3종                                         |
+| Trace          | 판단, 검색, Tool, 종료 기록                            | **P0** | 응답에 포함                                 |
+| MCP            | 최소 한 개 이상의 조회 Tool을 별도 프로세스로 호출     | **P0** | 필수 시연                                   |
+| Frontend       | 채팅, 출처, Tool 결과 표시                             | **P0** | 단일 Streamlit 화면, 동기 HTTP              |
+| 조회 Tool 확장 | 티켓 범위, 날씨(Open-Meteo), 코스 추천(실내/실외/전체) | P1           | 시간 남으면 추가                            |
+| 개인화         | 아이 동반, 관람 시간, 이동 조건을 질문에 반영          | P1           | 간단한 구조화 입력                          |
+| 예약           | 예약 내용을 보여주고 확인 후 실행                      | P1           | Mock 상태 변경 + 승인 워크플로우            |
+| Memory         | 같은 세션의 최근 대화와 관람 조건 유지                 | P1           | In-Memory dict로 우선 구현, Redis는 그 다음 |
+| 추가 구현      | 예약 영속화·Vision·Trace UX·SSE·STT/TTS·화면 확장 | P2           | P0/P1 회귀 통과 후 기능별 실패 격리         |
 
 ### 2.2 제외 범위(Out-of-Scope)
 
-| 제외 항목                     | 제외 이유                                | Agent 처리                          |
-| ----------------------------- | ---------------------------------------- | ----------------------------------- |
-| 실제 결제                     | 금전 및 최종 승인 위험                   | 결제를 실행하지 않고 안내 후 종료   |
-| 최종 법적 판단                | 전문 담당자의 권한                       | 관련 규정만 안내                    |
-| 동물 질병 진단                | 수의학적 판단 필요                       | 진단하지 않고 담당자 확인 안내      |
-| 시설 폐쇄·대피 명령          | 현장 안전 담당자의 권한                  | 운영 상태 조회와 연락 안내만 제공   |
-| 실제 운영 예약 시스템         | 외부 계약과 운영 데이터가 없음           | Mock 예약으로 시연(P1)              |
-| 장기 개인정보 저장            | 개인정보 동의·관리 범위 초과            | 세션 정보만 사용, 세션 종료 시 폐기 |
-| 다중 Agent 협업               | 고난도, 다음 프로젝트 교육 범위          | `zoo_guide` Agent 하나만 실행     |
-| 상용 배포·대규모 트래픽      | 로컬 시연 범위 초과                      | 개발 대상에서 제외                  |
-| 완전한 영상 분석              | 구현 난이도 높음                         | 텍스트 중심 흐름 유지               |
-| **SSE 실시간 스트리밍** | Day-1 필수 기능 아님, 구현·검증 비용 큼 | 동기 HTTP 응답으로 대체(15장)       |
-| **STT/TTS(음성)**       | 별도 Provider 연동 필요                  | Day-1 제외, P1에서도 선택 사항      |
-
-> ⚠️ **v0.2 대비 변경**: SSE와 STT/TTS는 v0.2에서 "선택 구현"으로 API 표에 남아있었으나, 1일 범위를 지키려면 애초에 손대지 않는 것이 안전합니다. Out-of-Scope로 명확히 내렸습니다.
+| 제외 항목                | 제외 이유                       | Agent 처리                          |
+| ------------------------ | ------------------------------- | ----------------------------------- |
+| 실제 결제                | 금전 및 최종 승인 위험          | 결제를 실행하지 않고 안내 후 종료   |
+| 최종 법적 판단           | 전문 담당자의 권한              | 관련 규정만 안내                    |
+| 동물 질병 진단           | 수의학적 판단 필요              | 진단하지 않고 담당자 확인 안내      |
+| 시설 폐쇄·대피 명령     | 현장 안전 담당자의 권한         | 운영 상태 조회와 연락 안내만 제공   |
+| 실제 운영 예약 시스템    | 외부 계약과 운영 데이터가 없음  | Mock 예약으로 시연(P1)              |
+| 장기 개인정보 저장       | 개인정보 동의·관리 범위 초과   | 세션 정보만 사용, 세션 종료 시 폐기 |
+| 다중 Agent 협업          | 고난도, 다음 프로젝트 교육 범위 | `zoo_guide` Agent 하나만 실행     |
+| 상용 배포·대규모 트래픽 | 로컬 시연 범위 초과             | 개발 대상에서 제외                  |
+| 완전한 영상 분석         | 구현 난이도 높음                | P2 정지 이미지 Vision만 지원        |
 
 ---
 
@@ -105,8 +105,6 @@ Backend Policy
 
 ### 3.1 반복·시간·임계값 정량 기준 (신규)
 
-> v0.2에는 이 기준이 숫자 없이 서술되어 테스트가 불가능했습니다. 가이드 문서 4.2의 권장값을 그대로 채택합니다.
-
 | 제한 항목                               |                             값 | 초과 시 동작                               |
 | --------------------------------------- | -----------------------------: | ------------------------------------------ |
 | `MAX_AGENT_STEPS`(LLM 재호출)         |                            6회 | `stopped`                                |
@@ -136,13 +134,13 @@ Zoo Guide Agent Profile
    ├─ 실행 State와 Trace
    └─ Tool Allowlist 검사
         ↓ Streamable HTTP
-MCP Server(Zoo MCP Server, :8010)
+MCP Server(Zoo MCP Server, :8100)
         ↓
-Mock 운영 데이터 (Day-1: In-Memory)
+Mock 운영 데이터 (P0: In-Memory)
         ↘ (P1) PostgreSQL/pgvector, Redis
 ```
 
-> ⚠️ **v0.2 대비 변경**: v0.2의 아키텍처도에는 PostgreSQL/Redis가 Day-1 구조에 바로 포함되어 있었습니다. 1일 범위에서는 **In-Memory 저장소로 시작**하고, RAG를 pgvector로, Pending Action을 Redis로 옮기는 것은 P1(여유 시)로 미룹니다. Tool·Repository 인터페이스만 미리 분리해두면 저장소 교체 시 코드 변경 범위가 좁아집니다.
+> ⚠️ **v0.1 대비 변경사항**: v0.2의 아키텍처도에는 PostgreSQL/Redis가 P1 구조에 바로 포함되어 있었습니다. P1 범위에서는 **In-Memory 저장소로 시작**하고, RAG를 pgvector로, Pending Action을 Redis로 옮기는 것은 P1로 합니다. Tool·Repository 인터페이스만 미리 분리해두면 저장소 교체 시 코드 변경 범위가 좁아집니다.
 
 ### 4.1 AI Agent 전체 작동 원리 (RAG + 조회 Tool, P0 핵심 경로)
 
@@ -185,9 +183,7 @@ sequenceDiagram
     F-->>U: 답변 표시
 ```
 
-### 4.2 예약 승인 흐름 (P1, 신규 추가)
-
-> v0.2는 승인을 CASE 표(N-06/N-07, A-06~A-08)로만 다루고 시퀀스 다이어그램이 없어, 소유권 검증 시점이 어디인지 그림으로 확인할 수 없었습니다. P1 구현 시 반드시 아래 순서를 따릅니다.
+### 4.2 예약 승인 흐름 (P1)
 
 ```mermaid
 sequenceDiagram
@@ -306,8 +302,8 @@ class AgentProfile:
 | `agent_id`     | `zoo_guide`                                                                        |
 | 이름             | 동물원 관람 도우미                                                                   |
 | Goal             | 관람객의 질문을 공식 문서와 허용된 운영 Tool로 해결하고 출처가 있는 답변을 제공한다. |
-| 대표 요청(Day-1) | `지금 펭귄 먹이시간이야?`                                                          |
-| 자동 실행(Day-1) | RAG 검색, 먹이시간·휴장·경로 조회                                                  |
+| 대표 요청(P0)    | `지금 펭귄 먹이시간이야?`                                                          |
+| 자동 실행(P0)    | RAG 검색, 먹이시간·휴장·경로 조회                                                  |
 | 자동 실행(P1)    | 티켓·날씨 조회                                                                      |
 | 승인 후 실행(P1) | `reserve_experience_program`                                                       |
 | 금지             | 결제, 역할 변경, 법률 판단, 의료 진단, 시설 폐쇄                                     |
@@ -326,18 +322,24 @@ ZOO_GUIDE_ALLOWED_TOOLS_P0 = frozenset({
 ZOO_GUIDE_ALLOWED_TOOLS_P1 = ZOO_GUIDE_ALLOWED_TOOLS_P0 | frozenset({
     "lookup_ticket_scope",
     "lookup_public_weather",
+    "get_course_info",
+    "get_indoor_course_info",
+    "get_outdoor_course_info",
     "reserve_experience_program",
 })
 ```
 
-| Tool                           | 목적                   | 위험도     | 우선순위 | 자동 실행 조건                  |
-| ------------------------------ | ---------------------- | ---------- | -------- | ------------------------------- |
-| `get_feeding_schedule`       | 동물사별 먹이시간 조회 | `read`   | P0       | 동물사 또는 동물명이 확인됨     |
-| `check_closure_status`       | 시설 휴장 여부 조회    | `read`   | P0       | 현재 운영 여부가 필요함         |
-| `find_habitat_route`         | 시설 간 경로 조회      | `read`   | P0       | 출발지와 목적지가 확인됨        |
-| `lookup_ticket_scope`        | 티켓 이용 범위 조회    | `read`   | P1       | 티켓 종류가 확인됨              |
-| `lookup_public_weather`      | 관람 지역 날씨 조회    | `read`   | P1       | 날씨가 코스에 영향을 줌         |
-| `reserve_experience_program` | 체험 예약 생성         | `change` | P1       | 유효한 Pending Action 승인 완료 |
+| Tool                           | 목적                                                    | 위험도     | 우선순위 | 자동 실행 조건                                                       |
+| ------------------------------ | ------------------------------------------------------- | ---------- | -------- | -------------------------------------------------------------------- |
+| `get_feeding_schedule`       | 동물사별 먹이시간 조회                                  | `read`   | P0       | 동물사 또는 동물명이 확인됨                                          |
+| `check_closure_status`       | 시설 휴장 여부 조회                                     | `read`   | P0       | 현재 운영 여부가 필요함                                              |
+| `find_habitat_route`         | 시설 간 경로 조회                                       | `read`   | P0       | 출발지와 목적지가 확인됨                                             |
+| `lookup_ticket_scope`        | 티켓 이용 범위 조회                                     | `read`   | P1       | 티켓 종류가 확인됨                                                   |
+| `lookup_public_weather`      | 관람 지역(고정값 "서울") 날씨 조회(Open-Meteo API 연동) | `read`   | P1       | Runtime이 요청 처리 전 항상 선조회, 날씨가 코스에 영향을 줌          |
+| `get_course_info`            | 실내+실외 겸용 맞춤 코스 추천(시간·아이 동반 반영)     | `read`   | P1       | 관람 가능 시간이 확인되고, 날씨 선조회가 맑음/흐림이거나 실패했을 때 |
+| `get_indoor_course_info`     | 실내 시설만 후보로 하는 코스 추천                       | `read`   | P1       | 관람 가능 시간이 확인되고, 날씨 선조회가 비·악천후일 때             |
+| `get_outdoor_course_info`    | 실외 시설만 후보로 하는 코스 추천                       | `read`   | P1       | 사용자가 실외 관람을 명시적으로 요청함(Instructions로 유도)          |
+| `reserve_experience_program` | 체험 예약 생성                                          | `change` | P1       | 유효한 Pending Action 승인 완료                                      |
 
 ### 5.6 Instructions 예시
 
@@ -404,16 +406,16 @@ ZOO_GUIDE_ALLOWED_TOOLS_P1 = ZOO_GUIDE_ALLOWED_TOOLS_P0 | frozenset({
 
 #### 6.1.1 정상 CASE 판단 흐름
 
-| Case ID | 우선순위 | 사용자 요청/현재 상태                    | Agent 판단                           | 실행 순서                                                                  | 정상 결과                        | 종료 상태                 |
-| ------- | -------- | ---------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------- | -------------------------------- | ------------------------- |
-| N-01    | P0       | `호랑이는 무엇을 먹어?`                | 공식 문서 지식 질문                  | 질의 재작성 → RAG 검색 → 근거 검증                                       | 먹이 정보와 문서 출처 표시       | `completed`             |
-| N-02    | P0       | `지금 펭귄 먹이시간이야?`              | 시간 의존 운영 질문                  | 동물사 확인 →`get_feeding_schedule`                                     | 다음 시간, 장소, Tool 정보 표시  | `completed`             |
-| N-03    | P0       | `해양관 운영 중이야?`                  | 현재 시설 상태 질문                  | `check_closure_status`                                                   | 운영 여부와 사유 표시            | `completed`             |
-| N-04    | P0       | `정문에서 호랑이관까지 어떻게 가?`     | 출발·목적지가 완전한 경로 질문      | `find_habitat_route`                                                     | 경로와 예상 이동시간 표시        | `completed`             |
-| N-05    | P1       | `5살 아이와 2시간 코스 추천해 줘.`     | RAG와 복수 Tool이 필요한 개인화 질문 | 세션 조건 조회 → RAG → 일정·휴장·경로 조회 → 시간 검증                | 120분 이내 코스 카드와 근거 표시 | `completed`             |
-| N-06    | P1       | `15시 사육사 체험 2명 예약해 줘.`      | 변경 Tool 요청                       | 인자 추출 → 가능 여부 확인 → Pending Action 저장(TTL 120초)              | 예약 요약과 확인 버튼 표시       | `confirmation_required` |
-| N-07    | P1       | 사용자가 N-06을 확인(같은`session_id`) | 유효한 승인 요청                     | action ID 조회 →**세션 일치**·TTL·상태 검사 → 저장된 인자로 예약 | 실제 Mock 예약번호 표시          | `completed`             |
-| N-08    | P1       | 같은 세션에서`그 다음에는 어디로 가?`  | 이전 코스가 필요한 후속 질문         | 최근 대화·조건 조회 → 경로 Tool                                          | 문맥을 반영한 다음 장소 안내     | `completed`             |
+| Case ID | 우선순위 | 사용자 요청/현재 상태                    | Agent 판단                           | 실행 순서                                                                                                                                                                               | 정상 결과                                                                       | 종료 상태                 |
+| ------- | -------- | ---------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------- |
+| N-01    | P0       | `호랑이는 무엇을 먹어?`                | 공식 문서 지식 질문                  | 질의 재작성 → RAG 검색 → 근거 검증                                                                                                                                                    | 먹이 정보와 문서 출처 표시                                                      | `completed`             |
+| N-02    | P0       | `지금 펭귄 먹이시간이야?`              | 시간 의존 운영 질문                  | 동물사 확인 →`get_feeding_schedule`                                                                                                                                                  | 다음 시간, 장소, Tool 정보 표시                                                 | `completed`             |
+| N-03    | P0       | `해양관 운영 중이야?`                  | 현재 시설 상태 질문                  | `check_closure_status`                                                                                                                                                                | 운영 여부와 사유 표시                                                           | `completed`             |
+| N-04    | P0       | `정문에서 호랑이관까지 어떻게 가?`     | 출발·목적지가 완전한 경로 질문      | `find_habitat_route`                                                                                                                                                                  | 경로와 예상 이동시간 표시                                                       | `completed`             |
+| N-05    | P1       | `5살 아이와 2시간 코스 추천해 줘.`     | RAG와 복수 Tool이 필요한 개인화 질문 | 세션 조건 조회 → Runtime이`lookup_public_weather` 선조회로 Allowlist 좁힘 → `get_course_info`(또는 비 예보 시 `get_indoor_course_info`) 호출 → 휴장 제외 후 그리디로 코스 계산 | 120분 이내 코스 카드(방문 순서·이동/관람 시간·총 시간·잔여 시간)와 근거 표시 | `completed`             |
+| N-06    | P1       | `15시 사육사 체험 2명 예약해 줘.`      | 변경 Tool 요청                       | 인자 추출 → 가능 여부 확인 → Pending Action 저장(TTL 120초)                                                                                                                           | 예약 요약과 확인 버튼 표시                                                      | `confirmation_required` |
+| N-07    | P1       | 사용자가 N-06을 확인(같은`session_id`) | 유효한 승인 요청                     | action ID 조회 →**세션 일치**·TTL·상태 검사 → 저장된 인자로 예약                                                                                                              | 실제 Mock 예약번호 표시                                                         | `completed`             |
+| N-08    | P1       | 같은 세션에서`그 다음에는 어디로 가?`  | 이전 코스가 필요한 후속 질문         | 최근 대화·조건 조회 → 경로 Tool                                                                                                                                                       | 문맥을 반영한 다음 장소 안내                                                    | `completed`             |
 
 #### 6.1.2 비정상 CASE 판단 흐름
 
@@ -437,16 +439,16 @@ ZOO_GUIDE_ALLOWED_TOOLS_P1 = ZOO_GUIDE_ALLOWED_TOOLS_P0 | frozenset({
 
 #### 6.1.3 정상 CASE 연계 테스트
 
-| Test ID | 우선순위 | 연계 Case | 준비 조건                              | 실행                 | 필수 검증                                                               |
-| ------- | -------- | --------- | -------------------------------------- | -------------------- | ----------------------------------------------------------------------- |
-| T-N01   | P0       | N-01      | 호랑이 문서 인덱싱                     | 생태 질문 POST       | `intent=rag`, `sources` 비어 있지 않음, 유사도 ≥ `RAG_MIN_SCORE` |
-| T-N02   | P0       | N-02      | 펭귄 먹이 Mock 등록                    | 먹이시간 질문 POST   | Tool 이름과 실제 Mock 시간이 일치                                       |
-| T-N03   | P0       | N-03      | 해양관 정상 상태                       | 운영 상태 질문 POST  | `closed=false`, 완료 응답                                             |
-| T-N04   | P0       | N-04      | 정문·호랑이관 경로 등록               | 경로 질문 POST       | 출발지, 목적지, 예상 시간이 표시됨                                      |
-| T-N05   | P1       | N-05      | 문서·일정·경로 Mock 준비             | 2시간 코스 질문 POST | RAG와 Tool 사용, 총시간이 입력 범위 이내                                |
-| T-N06   | P1       | N-06      | 예약 가능 인원 존재                    | 예약 질문 POST       | `confirmation_required`, 예약 저장 상태는 미변경                      |
-| T-N07   | P1       | N-07      | 유효한 Pending Action, 동일 session_id | confirm POST         | 예약 한 건 생성, 예약번호 표시                                          |
-| T-N08   | P1       | N-08      | 같은 session ID로 이전 질문 실행       | 후속 질문 POST       | 최근 대화가 조회되고 문맥이 유지됨                                      |
+| Test ID | 우선순위 | 연계 Case | 준비 조건                                              | 실행                 | 필수 검증                                                                                                                    |
+| ------- | -------- | --------- | ------------------------------------------------------ | -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| T-N01   | P0       | N-01      | 호랑이 문서 인덱싱                                     | 생태 질문 POST       | `intent=rag`, `sources` 비어 있지 않음, 유사도 ≥ `RAG_MIN_SCORE`                                                      |
+| T-N02   | P0       | N-02      | 펭귄 먹이 Mock 등록                                    | 먹이시간 질문 POST   | Tool 이름과 실제 Mock 시간이 일치                                                                                            |
+| T-N03   | P0       | N-03      | 해양관 정상 상태                                       | 운영 상태 질문 POST  | `closed=false`, 완료 응답                                                                                                  |
+| T-N04   | P0       | N-04      | 정문·호랑이관 경로 등록                               | 경로 질문 POST       | 출발지, 목적지, 예상 시간이 표시됨                                                                                           |
+| T-N05   | P1       | N-05      | 5살 아이·120분·정문 출발 조건, 코스 프로필 Mock 준비 | 2시간 코스 질문 POST | `get_course_info` 그리디 절차가 결정론적으로 재현(`total_minutes=115`, `remaining_minutes=5`), 총시간이 입력 범위 이내 |
+| T-N06   | P1       | N-06      | 예약 가능 인원 존재                                    | 예약 질문 POST       | `confirmation_required`, 예약 저장 상태는 미변경                                                                           |
+| T-N07   | P1       | N-07      | 유효한 Pending Action, 동일 session_id                 | confirm POST         | 예약 한 건 생성, 예약번호 표시                                                                                               |
+| T-N08   | P1       | N-08      | 같은 session ID로 이전 질문 실행                       | 후속 질문 POST       | 최근 대화가 조회되고 문맥이 유지됨                                                                                           |
 
 #### 6.1.4 비정상 CASE 연계 테스트
 
@@ -521,13 +523,16 @@ ZOO_GUIDE_ALLOWED_TOOLS_P1 = ZOO_GUIDE_ALLOWED_TOOLS_P0 | frozenset({
 
 ### 7.1 조회 Tool
 
-| Tool                      | 입력                         | 정상 출력        | 실패·빈 결과          | 위험도   | 우선순위 |
-| ------------------------- | ---------------------------- | ---------------- | ---------------------- | -------- | -------- |
-| `get_feeding_schedule`  | `habitat: str`             | 동물, 시간, 장소 | 동물사 없음, 일정 없음 | `read` | P0       |
-| `check_closure_status`  | `habitat: str \| None`      | 휴장 여부, 사유  | 시설 없음              | `read` | P0       |
-| `find_habitat_route`    | `current`, `destination` | 경로, 예상 시간  | 출발·목적지 없음      | `read` | P0       |
-| `lookup_ticket_scope`   | `ticket_type: str`         | 이용 범위, 제한  | 티켓 종류 없음         | `read` | P1       |
-| `lookup_public_weather` | `region: str`              | 날씨, 조회 시각  | 외부 API 장애          | `read` | P1       |
+| Tool                        | 입력                                                       | 정상 출력                                                                                  | 실패·빈 결과                                          | 위험도   | 우선순위 |
+| --------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ | -------- | -------- |
+| `get_feeding_schedule`    | `habitat: str`                                           | 동물, 시간, 장소                                                                           | 동물사 없음, 일정 없음                                 | `read` | P0       |
+| `check_closure_status`    | `habitat: str \| None`                                    | 휴장 여부, 사유                                                                            | 시설 없음                                              | `read` | P0       |
+| `find_habitat_route`      | `current`, `destination`                               | 경로, 예상 시간                                                                            | 출발·목적지 없음                                      | `read` | P0       |
+| `lookup_ticket_scope`     | `ticket_type: str`                                       | 이용 범위, 제한                                                                            | 티켓 종류 없음                                         | `read` | P1       |
+| `lookup_public_weather`   | `region: str`(고정값 "서울")                             | 날씨 상태(`condition`), `indoor_recommended`, 조회 시각(Open-Meteo API, TTL 10분 캐시) | 외부 API 장애·timeout(추천은 중단하지 않음)           | `read` | P1       |
+| `get_course_info`         | `available_minutes`, `child_accompanying`, `current` | 방문 순서, 구간별 이동·관람 시간, 총 시간, 남은 시간(실내+실외 후보)                      | 시간 내 코스 없음 →`stops=[]`(정상 응답)            | `read` | P1       |
+| `get_indoor_course_info`  | `available_minutes`, `child_accompanying`, `current` | 위와 동일(실내 시설만 후보)                                                                | 시간 내 코스 없음 →`stops=[]`(실외로 대체하지 않음) | `read` | P1       |
+| `get_outdoor_course_info` | `available_minutes`, `child_accompanying`, `current` | 위와 동일(실외 시설만 후보)                                                                | 시간 내 코스 없음 →`stops=[]`(실내로 대체하지 않음) | `read` | P1       |
 
 ### 7.2 변경 Tool (P1)
 
@@ -633,7 +638,7 @@ LLM Function Call 수신
 | `approved_at`     | `datetime \| None`                                                              | 승인 시각                                                              |
 | `result`          | `ToolRunResult \| None`                                                         | 실행 결과                                                              |
 
-> ⚠️ v0.2에는 `actor_id` 필드가 있었으나, 비로그인 게스트 환경에서는 클라이언트가 임의로 값을 채워 보낼 수 있어 신뢰할 수 없는 식별자입니다. 소유권 판정 기준을 **서버가 발급한 `session_id`** 하나로 통일하고 `actor_id`는 표시용 메모로만 남기거나 제거합니다.
+> ⚠️ 소유권 판정 기준을 **서버가 발급한 `session_id`** 하나로 통일하고 `actor_id`는 표시용 메모로만 남깁니다.
 
 ---
 
@@ -675,7 +680,7 @@ FORBIDDEN_TOOLS = {"make_payment", "change_user_role", "delete_database"}
 
 ---
 
-## 12. Human Approval 실행 흐름 (신규)
+## 12. Human Approval 실행 흐름
 
 > 4.2절 시퀀스 다이어그램의 텍스트 요약입니다. P1 구현 시 이 순서를 코드 리뷰 체크리스트로 사용합니다.
 
@@ -714,7 +719,7 @@ FORBIDDEN_TOOLS = {"make_payment", "change_user_role", "delete_database"}
 
 ---
 
-## 13. RAG 근거 검증과 임계값 (신규)
+## 13. RAG 근거 검증과 임계값
 
 | 항목                                | 값/기준                                                                     |
 | ----------------------------------- | --------------------------------------------------------------------------- |
@@ -730,7 +735,7 @@ FORBIDDEN_TOOLS = {"make_payment", "change_user_role", "delete_database"}
 
 ## 14. State 저장·멱등성·Audit
 
-| 저장 대상          | Day-1 구현        | P1 확장                                                             |
+| 저장 대상          | P0 구현           | P1 확장                                                             |
 | ------------------ | ----------------- | ------------------------------------------------------------------- |
 | 세션 대화(P1)      | -                 | In-Memory dict → 필요 시 기존 저장소 재사용                        |
 | Pending Action(P1) | -                 | In-Memory dict(TTL은 애플리케이션 레벨에서 만료 시각 비교) → Redis |
@@ -751,7 +756,7 @@ idempotency_key = session_id + ":" + action_id
 
 ## 15. Backend API
 
-### 15.1 Day-1 (P0) API
+### 15.1 P0 API
 
 | Method   | Endpoint                         | 역할                       | 인증/승인                    |
 | -------- | -------------------------------- | -------------------------- | ---------------------------- |
@@ -763,22 +768,21 @@ idempotency_key = session_id + ":" + action_id
 
 ### 15.2 P1 확장 API
 
-| Method   | Endpoint                                                                          | 역할                                                                                        | 인증/승인                      |
-| -------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------ |
-| `POST` | `/api/agent/confirm`                                                            | Pending Action 확인 후 실행(`session_id` 필수)                                            | 유효한 action + 세션 일치 필요 |
-| `POST` | `/api/reservations`                                                             | 예약 변경 Tool 실행 전 사용자 확인 생성                                                     | 사용자 로그인 세션             |
-| `GET`  | `/api/reservations/mine`                                                        | 사용자 예약 상태 조회                                                                       | 사용자 로그인 세션             |
-| `GET`  | `/api/admin/reservations/pending`                                               | 관리자 승인 대기 목록                                                                       | 관리자 로그인 세션             |
-| `POST` | `/api/admin/reservations/{action_id}/decision`                                  | 관리자 승인·거절                                                                           | 관리자 로그인 세션             |
-| `GET`  | `/api/agent/stream?session_id=`                                                 | Agent 응답 스트림(SSE)                                                                      | session 필요                   |
-| `POST` | `/api/media/stt`                                                                | 음성을 텍스트로 변환                                                                        | 선택 구현, Day-1 제외          |
-| `POST` | `/api/media/tts`                                                                | 답변을 음성으로 변환                                                                        | 선택 구현, Day-1 제외          |
-| `GET`  | `/api/tools/habitat-route?current=&destination=`                                | `find_habitat_route` 직접 실행(P1-B §11.4)                                               | 게스트 세션 허용               |
-| `GET`  | `/api/tools/course-info?available_minutes=&child_accompanying=&current=&scope=` | 코스 추천 Tool 3종 직접 실행,`scope` 생략 시 §6.2 날씨 선조회로 자동 선택(P1-B §11.4)   | 게스트 세션 허용               |
-| `GET`  | `/api/tools/closure-status?habitat=`                                            | `check_closure_status` 직접 실행, `habitat` 생략 시 전체 시설 반환(P1-B §11.3·15단계) | 게스트 세션 허용               |
+| Method   | Endpoint                                                                          | 역할                                                                                                                                                                                                          | 인증/승인                      |
+| -------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `POST` | `/api/agent/confirm`                                                            | Pending Action 확인 후 실행(`session_id` 필수)                                                                                                                                                              | 유효한 action + 세션 일치 필요 |
+| `POST` | `/api/reservations`                                                             | 예약 변경 Tool 실행 전 사용자 확인 생성                                                                                                                                                                       | 사용자 로그인 세션             |
+| `GET`  | `/api/reservations/mine`                                                        | 사용자 예약 상태 조회                                                                                                                                                                                         | 사용자 로그인 세션             |
+| `GET`  | `/api/admin/reservations/pending`                                               | 관리자 승인 대기 목록                                                                                                                                                                                         | 관리자 로그인 세션             |
+| `POST` | `/api/admin/reservations/{action_id}/decision`                                  | 관리자 승인·거절                                                                                                                                                                                             | 관리자 로그인 세션             |
+| `GET`  | `/api/agent/stream?session_id=`                                                 | Agent 응답 스트림(SSE)                                                                                                                                                                                        | P2, 유효한 session 필요        |
+| `POST` | `/api/tools/animal-image-analysis`                                              | 업로드한 정지 이미지의 동물을 Vision 모델로 분석                                                                                                                                                              | P2, 이미지 MIME 검증           |
+| `GET`  | `/api/tools/habitat-route?current=&destination=`                                | `find_habitat_route` 직접 실행(7.1 참조)                                                                                                                                                                    | 게스트 세션 허용               |
+| `GET`  | `/api/tools/course-info?available_minutes=&child_accompanying=&current=&scope=` | 코스 추천 Tool 3종(5.5·7.1 참조) 직접 실행,`scope` 생략 시 날씨 선조회로 `get_course_info`/`get_indoor_course_info` 중 자동 선택, `scope=outdoor_only` 명시 시 `get_outdoor_course_info` 직접 호출 | 게스트 세션 허용               |
+| `GET`  | `/api/tools/closure-status?habitat=`                                            | `check_closure_status` 직접 실행, `habitat` 생략 시 전체 시설 반환(7.1 참조)                                                                                                                              | 게스트 세션 허용               |
 
-> ⚠️ v0.2 대비 변경: `confirm`, SSE, STT/TTS를 Day-1 API에서 분리했습니다. Day-1은 `/api/health`, `/api/agent/ask`, `/api/admin/trace` 3개만으로 P0 시나리오(N-01~N-04, A-01~A-05, A-09~A-14) 전체를 시연할 수 있습니다.
-> `/api/tools/*` 3종은 Agent/LLM을 거치지 않는 조회 전용 엔드포인트로, `read` Tool과 동일한 수준의 접근을 허용해 인증 없이 게스트도 호출할 수 있다(P1-B 계획서 §11.4).
+> ⚠️ v0.2 대비 변경: `confirm`과 SSE는 P0 API에서 분리했습니다. P2 음성 화면은 브라우저 Web Speech API의 음성 인식·합성을 사용하고 질문만 기존 `/api/agent/ask`로 전달하므로 별도 STT/TTS Backend API를 만들지 않습니다. P0은 `/api/health`, `/api/agent/ask`, `/api/admin/trace` 3개만으로 P0 시나리오 전체를 시연할 수 있습니다.
+> `/api/tools/*` 3종은 Agent/LLM을 거치지 않는 조회 전용 엔드포인트로, `read` Tool과 동일한 수준의 접근을 허용해 인증 없이 게스트도 호출할 수 있다. `/api/tools/course-info`는 Agent 경로(6.1.1 N-05)가 사용하는 날씨 선조회·Tool 선택 로직을 그대로 재사용해야 하며 별도로 다시 구현하지 않는다(중복 구현 방지, 채팅 화면과 다른 결과를 보여주지 않도록 함).
 
 ### 15.3 로그인·관리자 권한 정책(v0.4)
 
@@ -790,7 +794,7 @@ idempotency_key = session_id + ":" + action_id
 - 일반 사용자 세션은 `/api/admin/*`에 접근할 수 없다. 관리자 예약 API는 403으로 차단하며 Trace는 관리자 세션 또는 기존 `ADMIN_TOKEN` Bearer 인증만 허용한다.
 - `frontend_admin`은 예약 승인·거절과 Agent Trace 조회를 제공하는 별도 실행 앱이다.
 
-### 15.4 예약 Tool과 MCP 책임 분리(v0.4)
+### 15.4 예약 Tool과 MCP 책임 분리
 
 - `reserve_experience_program`은 Backend의 로컬 `change` Tool이며 담당자는 손영민이다.
 - Tool은 승인 전 실행하지 않고, 저장된 Pending Action Snapshot과 서버 생성 멱등키만 사용한다. 취소·만료·중복·다른 세션 확인 및 승인 시점 정원 부족은 실행 성공으로 표시하지 않는다.
@@ -801,28 +805,39 @@ idempotency_key = session_id + ":" + action_id
 
 ## 16. 파일별 책임
 
-| 파일                                                      | 책임                                          | 우선순위 |
-| --------------------------------------------------------- | --------------------------------------------- | -------- |
-| `backend/app/agents/models.py`                          | `AgentProfile` 정의                         | P0       |
-| `backend/app/agents/zoo_guide_agent.py`                 | Goal, Instructions, Allowed Tools             | P0       |
-| `backend/app/agents/registry.py`                        | `zoo_guide` Profile 조회                    | P0       |
-| `backend/app/agents/runtime.py`                         | LLM·RAG·Tool 반복과 종료 통제               | P0       |
-| `backend/app/services/agent_orchestration_service.py`   | 질문, 결과 조립                               | P0       |
-| `backend/app/services/rag_service.py`                   | 검색과 출처 답변(7.4절 계약 적용)             | P0       |
-| `backend/app/tools/registry.py`                         | Tool 명세와 위험도 연결                       | P0       |
-| `backend/app/tools/executor.py`                         | Allowlist와 arguments 검증                    | P0       |
-| `backend/app/mcp_client/client.py`                      | MCP Tool 발견과 호출                          | P0       |
-| `mcp_server/server.py`                                  | `create_mcp_server()`와 Tool 등록           | P0       |
-| `frontend/app.py`                                       | Streamlit 관람객 화면                         | P0       |
-| `frontend/clients/agent_client.py`                      | ask API 호출                                  | P0       |
-| `frontend/image/`                                       | 사용자 화면 로컬 jpg/png/pdf 자산             | P0       |
-| `frontend_admin/app.py`                                 | 관리자 로그인·예약 승인·Trace 화면          | P0+      |
-| `backend/app/routers/auth_router.py`                    | 사용자·관리자 최소 DB 로그인                 | P0+      |
-| `backend/app/repositories/auth_session_repository.py`   | role 포함 로그인 세션과 TTL                   | P0+      |
-| `backend/app/repositories/pending_action_repository.py` | 예약 Snapshot TTL 저장과 consume              | P1       |
-| `backend/app/repositories/session_memory_repository.py` | 세션 대화·조건 저장                          | P1       |
-| `mcp_server/tools/public_data.py`                       | 날씨 공공데이터 Tool                          | P1       |
-| `backend/app/services/approval_service.py`              | Backend 로컬 예약 변경 Tool 승인 흐름(손영민) | P1       |
+| 파일                                                      | 책임                                                                                                      | 우선순위 |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------- |
+| `backend/app/agents/models.py`                          | `AgentProfile` 정의                                                                                     | P0       |
+| `backend/app/agents/zoo_guide_agent.py`                 | Goal, Instructions, Allowed Tools                                                                         | P0       |
+| `backend/app/agents/registry.py`                        | `zoo_guide` Profile 조회                                                                                | P0       |
+| `backend/app/agents/runtime.py`                         | LLM·RAG·Tool 반복과 종료 통제                                                                           | P0       |
+|  `backend/app/services/agent_orchestration_service.py`  | 질문, 결과 조립                                                                                           | P0       |
+| `backend/app/services/rag_service.py`                   | 검색과 출처 답변(7.4절 계약 적용)                                                                         | P0       |
+| `backend/app/tools/registry.py`                         | Tool 명세와 위험도 연결                                                                                   | P0       |
+| `backend/app/tools/executor.py`                         | Allowlist와 arguments 검증                                                                                | P0       |
+| `backend/app/mcp_client/client.py`                      | MCP Tool 발견과 호출                                                                                      | P0       |
+| `mcp_server/server.py`                                  | `create_mcp_server()`와 Tool 등록                                                                       | P0       |
+| `frontend/app.py`                                       | Streamlit 관람객 화면                                                                                     | P0       |
+| `frontend/clients/agent_client.py`                      | ask API 호출                                                                                              | P0       |
+| `frontend/image/`                                       | 사용자 화면 로컬 jpg/png/pdf 자산                                                                         | P0       |
+| `frontend_admin/app.py`                                 | 관리자 로그인·예약 승인·Trace 화면                                                                      | P0+      |
+| `backend/app/routers/auth_router.py`                    | 사용자·관리자 최소 DB 로그인                                                                             | P0+      |
+| `backend/app/repositories/auth_session_repository.py`   | role 포함 로그인 세션과 TTL                                                                               | P0+      |
+| `backend/app/repositories/pending_action_repository.py` | 예약 Snapshot TTL 저장과 consume                                                                          | P1       |
+| `backend/app/repositories/session_memory_repository.py` | 세션 대화·조건 저장                                                                                      | P1       |
+| `mcp_server/tools/public_data.py`                       | 날씨 공공데이터 Tool(`lookup_public_weather`, Open-Meteo API 연동)                                      | P1       |
+| `backend/app/services/approval_service.py`              | Backend 로컬 예약 변경 Tool 승인 흐름(손영민)                                                             | P1       |
+| `data/operations/course_profiles.json`                  | 코스 추천용 시설 프로필(관람 시간, 아이 동반, 실내/실외) 데이터                                           | P1       |
+| `backend/app/tools/zoo_tools.py`                        | `get_course_info`/`get_indoor_course_info`/`get_outdoor_course_info`/`lookup_public_weather` 구현 | P1       |
+| `backend/app/schemas/tools.py`                          | `CourseInfoInput`, `PublicWeatherInput` 등 Tool 입력 Schema                                           | P1       |
+| `backend/app/routers/tools_router.py`                   | `/api/tools/*` 조회 전용 REST 엔드포인트                                                                | P1       |
+| `mcp_server/tools/zoo_read.py`                          | 코스 추천 Tool 3종 MCP 등록                                                                               | P1       |
+| `tests/data/test_course_profiles.py`                    | `course_profiles.json` 참조 무결성 테스트                                                               | P1       |
+| `backend/app/services/vision_service.py`                | 이미지 크기·MIME 검증과 OpenAI Vision 분석                                                               | P2       |
+| `frontend/app_pages/image_analysis.py`                  | 동물 이미지 업로드와 분석 결과 화면                                                                       | P2       |
+| `frontend/app_pages/voice_assistant.py`                 | Web Speech STT/TTS와 기존 ask API를 연결한 음성 안내 화면                                                 | P2       |
+| `backend/app/repositories/pending_action_repository.py` | PostgreSQL 기반 Pending Action 저장·원자적 claim                                                         | P2       |
+| `backend/app/repositories/reservation_repository.py`    | PostgreSQL 기반 예약 저장·멱등성                                                                         | P2       |
 
 ---
 
@@ -841,6 +856,7 @@ idempotency_key = session_id + ":" + action_id
 |    7 | Frontend    | 질문, 출처, Tool 결과                                 | 전체 흐름 화면 시연                          | P0       |
 |    8 | 승인        | 확인 전후, 만료, 재사용,**세션 불일치**(T-A08b) | 변경은 승인 후 세션이 일치할 때만 한 번 발생 | P1       |
 |    9 | MCP         | tools/list, tools/call, timeout                       | 호출과 장애를 구분                           | P1       |
+|   10 | P2 확장     | 예약 영속화, Vision, Trace UX, 음성·화면 기능        | 기능별 정상·오류·권한·회귀 시험 통과      | P2       |
 
 ### 17.2 검증 체크리스트
 
@@ -856,17 +872,21 @@ idempotency_key = session_id + ":" + action_id
 - [ ] (P1) 확인 후 저장된 arguments로 예약이 한 번 실행된다.
 - [ ] (P1) 만료·재사용 action ID가 차단된다.
 - [ ] (P1) **다른 세션의 action_id로 confirm 시도 시 차단된다.**
+- [ ] (P2) Backend 재기동 후 예약과 Pending Action이 PostgreSQL에서 일관되게 조회된다.
+- [ ] (P2) 이미지가 아닌 파일과 Vision Provider 오류가 표준 오류로 처리된다.
+- [ ] (P2) 음성 기능 실패가 텍스트 질문·답변 흐름을 중단하지 않는다.
 
 ### 17.3 개발 순서
 
-| 구간     | 개발 목표                          | 작업 내용                                                | 검증 결과                          | 우선순위 |
-| -------- | ---------------------------------- | -------------------------------------------------------- | ---------------------------------- | -------- |
-| Phase 1  | 기준선 확보                        | Backend/MCP 기동, API Schema 정리, In-Memory 저장소 뼈대 | Backend health 확인                | P0       |
-| Phase 2  | Agent Profile·판단 흐름           | `zoo_guide` Profile, RAG + 조회 Tool 3종 연결          | N-01~N-04, A-01~A-05 실행         | P0       |
-| Phase 3  | 안전장치 검증                      | Allowlist 차단, 반복 한도, timeout, 금지 영역            | A-09~A-14 실행                     | P0       |
-| Phase 4  | Streamlit 통합                     | 질문, 출처, Tool 정보 표시                               | 브라우저에서 P0 흐름 시연          | P0       |
-| 마감(P0) | 통합 테스트와 문서화               | 실패 Case 수정, 실행 명령과 제한사항 기록                | 체크리스트(P0) 완료 후 데모 재실행 | P0       |
-| 확장(P1) | 티켓·날씨 Tool, 예약+승인, Memory | 4.2절 승인 흐름과 소유권 검증 구현                       | N-05~N-08, A-06~A-08b 실행        | P1       |
+| 구간     | 개발 목표                                              | 작업 내용                                                 | 검증 결과                          | 우선순위 |
+| -------- | ------------------------------------------------------ | --------------------------------------------------------- | ---------------------------------- | -------- |
+| Phase 1  | 기준선 확보                                            | Backend/MCP 기동, API Schema 정리, In-Memory 저장소 뼈대  | Backend health 확인                | P0       |
+| Phase 2  | Agent Profile·판단 흐름                               | `zoo_guide` Profile, RAG + 조회 Tool 3종 연결           | N-01~N-04, A-01~A-05 실행         | P0       |
+| Phase 3  | 안전장치 검증                                          | Allowlist 차단, 반복 한도, timeout, 금지 영역             | A-09~A-14 실행                     | P0       |
+| Phase 4  | Streamlit 통합                                         | 질문, 출처, Tool 정보 표시                                | 브라우저에서 P0 흐름 시연          | P0       |
+| 마감(P0) | 통합 테스트와 문서화                                   | 실패 Case 수정, 실행 명령과 제한사항 기록                 | 체크리스트(P0) 완료 후 데모 재실행 | P0       |
+| 확장(P1) | 티켓·날씨 Tool, 코스 추천 Tool 3종, 예약+승인, Memory | 4.2절 승인 흐름과 소유권 검증, 코스 추천 그리디 절차 구현 | N-05~N-08, A-06~A-08b 실행        | P1       |
+| 확장(P2) | 병합 완료 추가 기능의 안정화                           | 예약 영속화, Vision, Trace UX, 음성·다중 화면 회귀       | 기능별 API·UI·영속성 시험        | P2       |
 
 - 각 구간에서 오류가 발생하면 새 기능을 추가하지 않고 현재 사용자 흐름을 먼저 복구한다.
 - P0가 예정보다 늦어지면 P1은 시연에서 제외하고, 설계 문서(본 파일)로만 남긴다.
@@ -880,25 +900,12 @@ idempotency_key = session_id + ":" + action_id
 | -------------------------------------- | ---------------------------------------------------------------------------------- |
 | 샘플 문서 수가 적음                    | 제공된 동물 카드로만 RAG 검증,`RAG_MIN_SCORE`는 추후 조정                        |
 | 실제 운영 API 없음                     | 동일 입출력 계약의 Mock Tool 사용                                                  |
-| Day-1은 In-Memory 저장소               | Redis/PostgreSQL 연동은 P1, Repository 인터페이스만 미리 분리                      |
+| 예약 저장소는 PostgreSQL               | P2에서 Pending Action·예약을 영속화, 단일 DB 계약과 원자적 claim을 검증           |
 | 예약이 실제 시스템과 연결되지 않음(P1) | Mock 예약 ID로 승인 흐름만 검증                                                    |
-| 장기 사용자 Memory 없음                | 게스트 세션 범위만 유지(P1), Day-1은 무상태                                        |
+| 장기 사용자 Memory 없음                | 게스트 세션 범위만 유지(P1), P0은 무상태                                           |
 | 단일 Agent                             | Coordinator, Handoff, Multi-Agent 미구현                                           |
 | 로컬 실행                              | 상용 배포와 대규모 부하는 검증하지 않음                                            |
-| 제한된 Multimodal                      | Day-1 범위 밖, P1에서도 선택 기능으로 취급                                         |
+| 제한된 Multimodal                      | P2 정지 이미지 Vision과 브라우저 음성만 지원, 영상·서버 음성 Provider는 미구현    |
 | `actor_id` 미사용                    | 게스트 환경에서 신뢰할 수 없는 값이므로 소유권 판정에서 제외,`session_id`로 대체 |
 
----
-title: 동물원 관람 지원 AI 에이전트 개발 계획서
-project: Ranger Agent
-development_mode: 1인 순수 바이브코딩
-duration: 1일(P0 기준) / P1 포함 시 1.5~2일 권장
-scope: 로컬 시연용 MVP
-version: v0.4
-reviewed_by: 수석 AI 아키텍트
-review_basis: v0.3 구현 결과 및 권한 보완
-references:
-  - 01_agent-architecture-design-sample.md
-  - AI_Agent_개발_계획_가이드_요약.md
-  - 동물원_관람_지원_Zoo_Visit_Guide_AI_에이전트_개발_계획서_v0.2.md
 ---

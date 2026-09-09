@@ -14,7 +14,6 @@ class FakeMcpClient:
     """MCP 호출을 기록하고 미리 정한 결과를 반환하는 테스트용 Client다."""
 
     def __init__(self) -> None:
-        """아직 호출되지 않은 빈 기록 목록을 만든다."""
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     async def call_tool(
@@ -22,7 +21,6 @@ class FakeMcpClient:
         name: str,
         arguments: dict[str, Any],
     ) -> ToolRunResult:
-        """호출 정보를 기록한 뒤 성공 결과를 반환한다."""
         self.calls.append((name, arguments))
 
         return ToolRunResult(
@@ -35,10 +33,12 @@ class FakeMcpClient:
 
 
 def create_fake_rag_search(calls: list[tuple[str, str]]):
-    """RAG 검색 호출을 기록하는 테스트용 함수를 만든다."""
+    """비동기 RAG 검색 호출을 기록하는 테스트용 함수를 만든다."""
 
-    def fake_rag_search(query: str, collection: str) -> ToolRunResult:
-        """검색 인자를 기록한 뒤 가짜 성공 결과를 반환한다."""
+    async def fake_rag_search(
+        query: str,
+        collection: str,
+    ) -> ToolRunResult:
         calls.append((query, collection))
 
         return ToolRunResult(
@@ -140,7 +140,7 @@ def test_executor_runs_allowed_mcp_tool() -> None:
 
 
 def test_executor_runs_course_info_tool_with_available_minutes() -> None:
-    """코스 추천 Tool은 available_minutes만 있으면 기본값으로 실행돼야 한다(CourseInfoInput, P1-B §5.1)."""
+    """코스 추천 Tool은 기본값까지 채워 MCP에 전달해야 한다."""
     mcp_client = FakeMcpClient()
     rag_calls: list[tuple[str, str]] = []
     executor = create_executor(mcp_client, rag_calls)
@@ -159,14 +159,18 @@ def test_executor_runs_course_info_tool_with_available_minutes() -> None:
     assert mcp_client.calls == [
         (
             "get_course_info",
-            {"available_minutes": 120, "child_accompanying": False, "current": "정문"},
+            {
+                "available_minutes": 120,
+                "child_accompanying": False,
+                "current": "정문",
+            },
         )
     ]
     assert state.tool_attempts == 1
 
 
-def test_executor_blocks_invalid_course_info_arguments_without_execution() -> None:
-    """코스 Tool의 계약 밖 인자(옛 name 기반 조회 등)는 MCP 호출 전에 차단해야 한다."""
+def test_executor_blocks_legacy_course_name_argument() -> None:
+    """이전 name 기반 코스 조회 인자는 MCP 호출 전에 차단해야 한다."""
     mcp_client = FakeMcpClient()
     rag_calls: list[tuple[str, str]] = []
     executor = create_executor(mcp_client, rag_calls)
@@ -246,41 +250,19 @@ def test_executor_stops_before_third_same_call() -> None:
     assert state.tool_attempts == 2
 
 
-# ---- P1-B 맞춤 코스 추천 Tool 4종 Runtime 검증 (7단계) ----
-
-
-def test_executor_runs_allowed_get_course_info_and_fills_defaults() -> None:
-    """CourseInfoInput의 기본값(child_accompanying=False, current="정문")이
-    MCP로 넘어가는 인자에도 채워져야 한다."""
-    mcp_client = FakeMcpClient()
-    executor = create_executor(mcp_client, [])
-
-    result = asyncio.run(
-        executor.execute_tool_safely(
-            "get_course_info",
-            {"available_minutes": 120},
-            profile=get_agent_profile("zoo_guide"),
-            state=create_state(),
-        )
-    )
-
-    assert result.success is True
-    assert mcp_client.calls == [
-        (
-            "get_course_info",
-            {"available_minutes": 120, "child_accompanying": False, "current": "정문"},
-        )
-    ]
-
-
 def test_executor_runs_allowed_get_indoor_course_info() -> None:
+    """실내 코스 Tool은 허용된 MCP Tool로 실행돼야 한다."""
     mcp_client = FakeMcpClient()
     executor = create_executor(mcp_client, [])
 
     result = asyncio.run(
         executor.execute_tool_safely(
             "get_indoor_course_info",
-            {"available_minutes": 90, "child_accompanying": True, "current": "정문"},
+            {
+                "available_minutes": 90,
+                "child_accompanying": True,
+                "current": "정문",
+            },
             profile=get_agent_profile("zoo_guide"),
             state=create_state(),
         )
@@ -291,6 +273,7 @@ def test_executor_runs_allowed_get_indoor_course_info() -> None:
 
 
 def test_executor_runs_allowed_get_outdoor_course_info() -> None:
+    """실외 코스 Tool은 허용된 MCP Tool로 실행돼야 한다."""
     mcp_client = FakeMcpClient()
     executor = create_executor(mcp_client, [])
 
@@ -308,6 +291,7 @@ def test_executor_runs_allowed_get_outdoor_course_info() -> None:
 
 
 def test_executor_runs_allowed_lookup_public_weather() -> None:
+    """날씨 조회 Tool은 허용된 MCP Tool로 실행돼야 한다."""
     mcp_client = FakeMcpClient()
     executor = create_executor(mcp_client, [])
 
@@ -321,10 +305,12 @@ def test_executor_runs_allowed_lookup_public_weather() -> None:
     )
 
     assert result.success is True
-    assert mcp_client.calls == [("lookup_public_weather", {"region": "서울"})]
+    assert mcp_client.calls == [
+        ("lookup_public_weather", {"region": "서울"})
+    ]
 
 
-def test_executor_blocks_invalid_course_info_arguments_without_execution() -> None:
+def test_executor_blocks_non_integer_available_minutes_without_execution() -> None:
     """available_minutes에 문자열이 오면 MCP를 호출하지 않고 차단해야 한다."""
     mcp_client = FakeMcpClient()
     executor = create_executor(mcp_client, [])
@@ -345,9 +331,7 @@ def test_executor_blocks_invalid_course_info_arguments_without_execution() -> No
 
 
 def test_executor_course_info_still_requires_allowlist_entry() -> None:
-    """CourseInfoInput이 executor.py의 Schema 매핑에 등록돼 있어도, Profile의
-    allowed_tools에 없으면 여전히 차단돼야 한다 — Schema 등록(7단계)과
-    Allowlist 등록(8단계)은 별개 관문이다."""
+    """Schema에 등록돼 있어도 Profile allowlist에 없으면 차단해야 한다."""
     mcp_client = FakeMcpClient()
     executor = create_executor(mcp_client, [])
     profile_without_course_tools = get_agent_profile("zoo_guide").model_copy(

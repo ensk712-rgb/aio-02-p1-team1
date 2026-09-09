@@ -24,6 +24,15 @@ CLIENT_ERROR_LABELS = {
     "invalid_response": ("응답 형식 오류", ":material/data_alert:"),
 }
 
+TOOL_LABELS = {
+    "retrieve_animal_info": "동물 정보 검색",
+    "get_feeding_schedule": "먹이주기 일정 조회",
+    "get_habitat_route": "관람 경로 조회",
+    "get_closure_status": "시설 운영 여부 조회",
+    "lookup_public_weather": "날씨 정보 조회",
+    "reserve_experience_program": "체험 예약 요청",
+}
+
 
 def render_agent_response(response: dict[str, Any], *, key_prefix: str = "response") -> None:
     status = str(response.get("status", "error"))
@@ -91,10 +100,27 @@ def render_tool_calls(tool_calls: Any, *, key_prefix: str = "response") -> None:
         icon = ":material/directions_walk:" if success else ":material/error:"
         with st.container(border=True, key=f"{key_prefix}_tool_card_{index}"):
             st.subheader(title, icon=icon)
-            st.caption(f"사용 도구 · {call.get('name', '알 수 없음')}")
+            tool_name = str(call.get("name", ""))
+            st.caption(f"확인 항목 · {TOOL_LABELS.get(tool_name, '기타 운영 정보')}")
             if success:
                 data = result.get("data") if isinstance(result.get("data"), dict) else {}
-                st.table(_display_data(data), border="horizontal")
+                displayed = _display_data(data)
+                if displayed:
+                    st.table(displayed, border="horizontal")
+                chunks = data.get("chunks")
+                if isinstance(chunks, list) and chunks:
+                    safe_chunks = [
+                        _display_data(chunk)
+                        for chunk in chunks
+                        if isinstance(chunk, dict)
+                    ]
+                    if safe_chunks:
+                        st.markdown("**검색 자료**")
+                        st.dataframe(
+                            pd.DataFrame(safe_chunks),
+                            hide_index=True,
+                            key=f"{key_prefix}_tool_chunks_{index}",
+                        )
                 st.caption(
                     f"자료 기준: {data.get('as_of', '확인 불가')} · "
                     f"조회 시각: {result.get('retrieved_at', '확인 불가')} · "
@@ -118,12 +144,25 @@ def _display_data(data: dict[str, Any]) -> dict[str, Any]:
         "destination": "도착",
         "path": "경로",
         "estimated_minutes": "예상 시간(분)",
+        "matched": "검색 결과",
+        "chunks": "검색 자료",
+        "doc_id": "자료 ID",
+        "title": "자료명",
+        "page": "페이지",
+        "text": "내용",
+        "score": "관련도",
+        "collection": "자료 분류",
+        "query": "검색어",
     }
     displayed: dict[str, str] = {}
     for key, value in data.items():
-        if key == "as_of":
+        if key in {"as_of", "chunks"}:
             continue
-        if isinstance(value, list):
+        if key == "matched" and isinstance(value, bool):
+            normalized = "일치하는 정보 있음" if value else "일치하는 정보 없음"
+        elif isinstance(value, bool):
+            normalized = "예" if value else "아니요"
+        elif isinstance(value, list):
             normalized = " → ".join(str(item) for item in value)
         elif value is None:
             normalized = "없음"

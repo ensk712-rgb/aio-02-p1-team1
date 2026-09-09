@@ -18,8 +18,8 @@ def _run_with_question(monkeypatch, question: str) -> AppTest:
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
     at.run()
-    at.text_input(key="chat_message_input").set_value(question)
-    at.button(key="FormSubmitter:chat_panel_form-보내기").click().run()
+    at.text_input(key="hero_question").set_value(question)
+    at.button(key="FormSubmitter:hero_question_form-AI에게 질문하기").click().run()
     return at
   
 
@@ -81,7 +81,7 @@ def test_feature_pages_render_from_navigation(monkeypatch, page_path: str, expec
 
 def test_reservation_page_labels_live_backend_mode(monkeypatch) -> None:
     monkeypatch.setenv("ZOO_UI_FAKE_MODE", "0")
-    monkeypatch.setenv("BACKEND_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("BACKEND_URL", "http://192.100.200.198:8000/")
     at = AppTest.from_file(str(APP_PATH), default_timeout=10)
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
@@ -98,6 +98,22 @@ def test_completed_renders_sources_and_tool_card(monkeypatch) -> None:
     assert any("확인 완료" in item.value for item in at.markdown)
     assert any("운영 정보 확인" in subheader.value for subheader in at.subheader)
     assert any("자료" in frame.value.columns for frame in at.dataframe)
+
+
+def test_rag_operation_fields_have_korean_display_labels() -> None:
+    from frontend.ui import TOOL_LABELS, _display_data
+
+    displayed = _display_data(
+        {
+            "matched": True,
+            "chunks": [{"doc_id": "ANIMAL-TIGER", "score": 0.82}],
+        }
+    )
+
+    assert TOOL_LABELS["retrieve_animal_info"] == "동물 정보 검색"
+    assert displayed == {"검색 결과": "일치하는 정보 있음"}
+    chunk = _display_data({"doc_id": "ANIMAL-TIGER", "score": 0.82})
+    assert chunk == {"자료 ID": "ANIMAL-TIGER", "관련도": "0.82"}
 
 
 def test_error_is_not_rendered_as_success(monkeypatch) -> None:
@@ -143,11 +159,28 @@ def test_new_conversation_clears_messages_and_session(monkeypatch) -> None:
 
 def test_chat_history_supports_multiple_tool_responses(monkeypatch) -> None:
     at = _run_with_question(monkeypatch, "펭귄 먹이시간")
-    at.text_input(key="chat_message_input").set_value("해양관 펭귄 먹이시간")
-    at.button(key="FormSubmitter:chat_panel_form-보내기").click().run()
+    at.text_input(key="hero_question").set_value("해양관 펭귄 먹이시간")
+    at.button(key="FormSubmitter:hero_question_form-AI에게 질문하기").click().run()
     assert not at.exception
     assert len(at.session_state["messages"]) == 4
     assert at.session_state["chat_status"] == "ready"
+
+
+def test_home_has_one_question_input_and_no_reservation_form(monkeypatch) -> None:
+    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
+    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
+    at.session_state["login_success"] = True
+    at.session_state["user_id"] = "TEST"
+    at.session_state["auth_session_id"] = "auth_fake"
+    at.run()
+
+    assert not at.exception
+    assert at.text_input(key="hero_question") is not None
+    assert not any(item.key == "chat_message_input" for item in at.text_input)
+    assert not any("체험 예약 요청" in item.value for item in at.expander)
+    subheaders = [item.value for item in at.subheader]
+    assert "동물 백과" in subheaders
+    assert "실시간 혼잡도" in subheaders
 
 
 def test_login_success_is_saved_without_password(monkeypatch) -> None:
@@ -168,7 +201,7 @@ def test_reservation_confirmation_card_and_confirm(monkeypatch) -> None:
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run()
+    at.run().switch_page("app_pages/reservation.py").run()
     at.button(key="FormSubmitter:reservation_request-예약 내용 확인").click().run()
     action = at.session_state["pending_reservation_action"]
     assert action["approval_status"] == "pending"
@@ -222,22 +255,10 @@ def test_route_recommendation_renders_form_without_calling_backend(monkeypatch) 
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run().switch_page("app_pages/zoo_map.py").run()
+    at.run().switch_page("app_pages/route_recommendation.py").run()
     assert not at.exception
     assert at.number_input(key="route_available_minutes") is not None
     assert at.session_state["route_recommendation_result"] is None
-
-
-def test_home_has_one_chat_input_in_main_content(monkeypatch) -> None:
-    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
-    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
-    at.session_state["login_success"] = True
-    at.session_state["user_id"] = "TEST"
-    at.session_state["auth_session_id"] = "auth_fake"
-    at.run()
-    assert not at.exception
-    assert at.text_input(key="chat_message_input") is not None
-    assert not any(item.key == "hero_question" for item in at.text_input)
 
 
 def test_route_recommendation_submit_renders_fake_course_result(monkeypatch) -> None:
@@ -246,7 +267,7 @@ def test_route_recommendation_submit_renders_fake_course_result(monkeypatch) -> 
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run().switch_page("app_pages/zoo_map.py").run()
+    at.run().switch_page("app_pages/route_recommendation.py").run()
     at.button(key="FormSubmitter:route_recommendation_form-추천 동선 보기").click().run()
     assert not at.exception
     result = at.session_state["route_recommendation_result"]
@@ -283,7 +304,7 @@ def test_route_recommendation_shows_empty_result_notice(monkeypatch) -> None:
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run().switch_page("app_pages/zoo_map.py").run()
+    at.run().switch_page("app_pages/route_recommendation.py").run()
     at.button(key="FormSubmitter:route_recommendation_form-추천 동선 보기").click().run()
     assert not at.exception
     assert any("가능한 코스를 만들기 어렵습니다" in warning.value for warning in at.warning)
@@ -321,7 +342,7 @@ def test_route_recommendation_shows_indoor_only_notice(monkeypatch) -> None:
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run().switch_page("app_pages/zoo_map.py").run()
+    at.run().switch_page("app_pages/route_recommendation.py").run()
     at.button(key="FormSubmitter:route_recommendation_form-추천 동선 보기").click().run()
     assert not at.exception
     assert any("실내에서 관람 가능한 코스만" in info.value for info in at.info)
@@ -334,11 +355,11 @@ def test_logout_clears_route_recommendation_result(monkeypatch) -> None:
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run().switch_page("app_pages/zoo_map.py").run()
+    at.run().switch_page("app_pages/route_recommendation.py").run()
     at.button(key="FormSubmitter:route_recommendation_form-추천 동선 보기").click().run()
     assert at.session_state["route_recommendation_result"] is not None
 
-    at.button(key="logout_map").click().run()
+    at.button(key="logout_route").click().run()
     assert not at.exception
     assert at.session_state["route_recommendation_result"] is None
 
@@ -360,13 +381,21 @@ def test_additional_feature_pages_render(monkeypatch) -> None:
         assert any(expected in title.value for title in at.title)
 
 
+def test_voice_page_contains_agent_answer_controls() -> None:
+    source = (APP_PATH.parent / "app_pages" / "voice_assistant.py").read_text(encoding="utf-8")
+    assert "AI에게 질문하기" in source
+    assert "AI 안내 답변" in source
+    assert "답변 듣기" in source
+    assert "/api/agent/ask" in source
+
+
 def test_reservation_confirmation_can_be_cancelled(monkeypatch) -> None:
     monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
     at = AppTest.from_file(str(APP_PATH), default_timeout=10)
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run()
+    at.run().switch_page("app_pages/reservation.py").run()
     at.button(key="FormSubmitter:reservation_request-예약 내용 확인").click().run()
     action_id = at.session_state["pending_reservation_action"]["action_id"]
     at.button(key=f"cancel_{action_id}").click().run()

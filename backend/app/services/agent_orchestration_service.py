@@ -31,6 +31,8 @@ class TraceRepositoryProtocol(Protocol):
         run_id: str,
         status: str,
         trace: list[dict],
+        *,
+        question: str | None = None,
     ) -> None:
         """실행 결과와 Trace를 저장한다."""
 
@@ -118,6 +120,7 @@ class AgentOrchestrationService:
             run_id=response.run_id,
             status=response.status,
             trace=[item.model_dump(mode="json") for item in response.trace],
+            question=request.message,
         )
         self._session_memory_repository.append_message(
             session_id, "user", request.message

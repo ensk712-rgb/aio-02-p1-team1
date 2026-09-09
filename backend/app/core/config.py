@@ -51,7 +51,6 @@ class Settings(BaseSettings):
     # P1: pgvector/Redis 전환 (STORAGE_MODE=persistent일 때만 사용)
     DATABASE_URL: str = ""
     REDIS_URL: str = ""
-    RESERVATION_STORAGE_MODE: Literal["memory", "persistent"] = "memory"
     SESSION_MEMORY_MAX_TURNS: int = 6
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_RETRY_COUNT: int = 1
@@ -90,11 +89,6 @@ class Settings(BaseSettings):
         if not self.DEMO_NOW:
             return None
         return datetime.fromisoformat(self.DEMO_NOW)
-
-    @property
-    def use_persistent_reservations(self) -> bool:
-        """명시적으로 선택된 경우에만 예약을 PostgreSQL에 저장한다."""
-        return self.RESERVATION_STORAGE_MODE == "persistent"
 
 
 @lru_cache

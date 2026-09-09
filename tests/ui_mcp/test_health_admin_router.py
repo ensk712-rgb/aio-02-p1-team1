@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.app.core.config import Settings
+from backend.app.main import create_app
 from backend.app.routers.admin_router import create_admin_router
 from backend.app.routers.health_router import create_health_router
 
@@ -42,6 +44,33 @@ def test_health_reports_actual_mcp_state() -> None:
     assert degraded.json()["status"] == "degraded"
 
 
+def test_cors_uses_configured_origin_allowlist() -> None:
+    app = create_app(
+        Settings(
+            _env_file=None,
+            APP_MODE="mock",
+            CORS_ALLOW_ORIGINS="http://localhost:8501,http://192.100.200.198:8501",
+        )
+    )
+    client = TestClient(app)
+    allowed = client.options(
+        "/api/agent/ask",
+        headers={
+            "Origin": "http://localhost:8501",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    blocked = client.options(
+        "/api/agent/ask",
+        headers={
+            "Origin": "http://untrusted.example",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert allowed.headers["access-control-allow-origin"] == "http://localhost:8501"
+    assert "access-control-allow-origin" not in blocked.headers
+
+
 def _admin_client(token: str) -> TestClient:
     app = FastAPI()
     app.include_router(
@@ -50,6 +79,16 @@ def _admin_client(token: str) -> TestClient:
                 {"run_id": "run_1", "status": "completed", "trace": []}
             ] if session_id == "session_1" else [],
             admin_token=token,
+            list_recent_summaries=lambda: [
+                {
+                    "session_id": "session_1",
+                    "last_run_at": "2026-09-09T00:00:00+00:00",
+                    "status": "completed",
+                    "question_preview": "먹이시간 알려줘",
+                    "tools": ["get_feeding_schedule"],
+                }
+            ],
+            get_summary=lambda session_id: {"session_id": session_id} if session_id == "session_1" else None,
         )
     )
     return TestClient(app)
@@ -103,6 +142,17 @@ def test_admin_trace_returns_repository_contract() -> None:
         headers={"Authorization": "Bearer test-admin-token"},
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "runs": [{"run_id": "run_1", "status": "completed", "trace": []}]
-    }
+    assert response.json()["runs"] == [{"run_id": "run_1", "status": "completed", "trace": []}]
+    assert response.json()["detail_expired"] is False
+    assert response.json()["summary"] == {"session_id": "session_1"}
+
+
+def test_admin_recent_trace_sessions_requires_admin_and_returns_summaries() -> None:
+    client = _admin_client("test-admin-token")
+    assert client.get("/api/admin/trace/sessions").status_code == 401
+    response = client.get(
+        "/api/admin/trace/sessions",
+        headers={"Authorization": "Bearer test-admin-token"},
+    )
+    assert response.status_code == 200
+    assert response.json()["sessions"][0]["question_preview"] == "먹이시간 알려줘"

@@ -30,39 +30,6 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 
 CREATE INDEX IF NOT EXISTS document_chunks_collection_idx
     ON document_chunks (collection);
-
-CREATE TABLE IF NOT EXISTS reservations (
-    action_id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    program TEXT NOT NULL,
-    visit_time TEXT NOT NULL,
-    headcount INTEGER NOT NULL CHECK (headcount > 0),
-    status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    decided_at TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS reservations_user_created_idx
-    ON reservations (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS reservations_status_created_idx
-    ON reservations (status, created_at ASC);
-
-CREATE TABLE IF NOT EXISTS pending_reservation_actions (
-    action_id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    tool_name TEXT NOT NULL,
-    arguments JSONB NOT NULL,
-    summary TEXT NOT NULL,
-    approval_status TEXT NOT NULL CHECK (
-        approval_status IN ('pending', 'processing', 'cancelled', 'completed', 'expired')
-    ),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at TIMESTAMPTZ NOT NULL,
-    decided_at TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS pending_actions_session_status_idx
-    ON pending_reservation_actions (session_id, approval_status, created_at DESC);
 """
 
 
@@ -84,7 +51,7 @@ def get_connection_pool(dsn: str | None = None) -> ConnectionPool:
 
 
 def ensure_schema(pool: ConnectionPool | None = None) -> None:
-    """pgvector 문서와 예약 영구 저장 테이블이 없으면 만든다."""
+    """pgvector 확장과 document_chunks 테이블이 없으면 만든다."""
     pool = pool or get_connection_pool()
     with pool.connection() as conn:
         conn.execute(_SCHEMA_SQL)

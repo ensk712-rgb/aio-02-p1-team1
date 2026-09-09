@@ -129,13 +129,6 @@ class AgentClient:
             headers={"X-Auth-Session": auth_session_id},
         )
 
-    def get_pending_reservation(self, auth_session_id: str) -> dict[str, Any]:
-        return self._request(
-            "GET",
-            "/api/reservations/pending-action",
-            headers={"X-Auth-Session": auth_session_id},
-        )
-
     def confirm_reservation(
         self,
         auth_session_id: str,
@@ -166,6 +159,13 @@ class AgentClient:
             "/api/admin/trace",
             headers={"X-Auth-Session": auth_session_id},
             params={"session_id": session_id},
+        )
+
+    def list_admin_trace_sessions(self, auth_session_id: str) -> dict[str, Any]:
+        return self._request(
+            "GET",
+            "/api/admin/trace/sessions",
+            headers={"X-Auth-Session": auth_session_id},
         )
 
     def decide_reservation(
@@ -221,6 +221,16 @@ class AgentClient:
 
     def get_public_weather(self, region: str = "서울") -> dict[str, Any]:
         return self._request("GET", "/api/tools/public-weather", params={"region": region})
+
+    def analyze_animal_image(
+        self, image_bytes: bytes, *, filename: str, content_type: str
+    ) -> dict[str, Any]:
+        """POST /api/tools/animal-image-analysis를 호출해 사진 속 동물을 분석한다."""
+        return self._request(
+            "POST",
+            "/api/tools/animal-image-analysis",
+            files={"image": (filename, image_bytes, content_type)},
+        )
 
     def _request(
         self, method: str, path: str, *, allow_empty: bool = False, **kwargs: Any

@@ -66,6 +66,3 @@ class ApprovalService:
             "pending_action": completed,
             "reservation": reservation,
         }
-
-    def get_pending(self, *, session_id: str) -> dict[str, Any] | None:
-        return self._pending_actions.get_pending_for_session(session_id)

@@ -8,7 +8,7 @@ ApprovalService는 사용자 확인용 Pending Action만 생성한다.
 from __future__ import annotations
 
 from fastapi import FastAPI
-
+import asyncio
 from backend.app.agents.runtime import RuntimeSettings
 from backend.app.core import db as db_module
 from backend.app.core import redis_client as redis_client_module
@@ -24,10 +24,6 @@ from backend.app.repositories import (
 from backend.app.repositories.auth_session_repository import AuthSessionRepository
 from backend.app.repositories.pending_action_repository import PendingActionRepository
 from backend.app.repositories.reservation_repository import ReservationRepository
-from backend.app.repositories.postgres_reservation_repository import (
-    PostgresPendingActionRepository,
-    PostgresReservationRepository,
-)
 from backend.app.repositories.user_repository import UserRepository
 from backend.app.routers.admin_router import create_admin_router
 from backend.app.routers.agent_router import create_agent_router
@@ -48,6 +44,7 @@ class _PersistenceHealth:
     create_app()에 전달된 settings를 명시적으로 넘겨야 한다 — 전역 캐시된
     get_settings()에만 의존하면 테스트 등에서 다른 Settings를 주입해도
     무시되고 원래 프로세스의 DATABASE_URL/REDIS_URL을 보게 된다.
+
     """
 
     def __init__(self, settings: Settings) -> None:
@@ -90,22 +87,10 @@ def create_app(
     auth_sessions = auth_sessions or AuthSessionRepository(
         ttl_seconds=settings.SESSION_TTL_SECONDS
     )
-    if settings.use_persistent_reservations and (
-        reservations is None or pending_actions is None
-    ):
-        from backend.app.core.db import ensure_schema, get_connection_pool
-
-        pool = get_connection_pool(settings.DATABASE_URL)
-        ensure_schema(pool)
-        reservations = reservations or PostgresReservationRepository(pool)
-        pending_actions = pending_actions or PostgresPendingActionRepository(
-            ttl_seconds=settings.PENDING_TTL_SECONDS, pool=pool
-        )
-    else:
-        reservations = reservations or ReservationRepository()
-        pending_actions = pending_actions or PendingActionRepository(
-            ttl_seconds=settings.PENDING_TTL_SECONDS
-        )
+    reservations = reservations or ReservationRepository()
+    pending_actions = pending_actions or PendingActionRepository(
+        ttl_seconds=settings.PENDING_TTL_SECONDS
+    )
 
     user_repository.initialize()
 
@@ -188,6 +173,8 @@ def create_app(
             trace_repository.list_runs,
             admin_token=settings.ADMIN_TOKEN,
             auth_sessions=auth_sessions,
+            list_recent_summaries=trace_repository.list_recent_summaries,
+            get_summary=trace_repository.get_summary,
         )
     )
     application.include_router(create_tools_router())
@@ -195,12 +182,16 @@ def create_app(
     return application
 
 
-def _retrieve_animal_info_for_executor(
+async def _retrieve_animal_info_for_executor(
     query: str,
     collection: str,
 ) -> ExecutorToolRunResult:
-    """rag_service의 ToolRunResult(schemas.common)를 Executor 계약(schemas.tools)으로 정규화한다."""
-    result = retrieve_animal_info(query, collection)
+    """RAG 동기 검색을 별도 작업 스레드에서 실행한다."""
+    result = await asyncio.to_thread(
+        retrieve_animal_info,
+        query,
+        collection,
+    )
     return ExecutorToolRunResult.model_validate(result.model_dump())
 
 

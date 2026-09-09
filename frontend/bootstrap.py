@@ -40,7 +40,6 @@ class AgentClientProtocol(Protocol):
     def create_reservation(self, auth_session_id: str, **payload: Any) -> dict[str, Any]: ...
     def confirm_reservation(self, auth_session_id: str, action_id: str, decision: str) -> dict[str, Any]: ...
     def get_my_reservations(self, auth_session_id: str) -> dict[str, Any]: ...
-    def get_pending_reservation(self, auth_session_id: str) -> dict[str, Any]: ...
 
     def get_course_info(
         self,
@@ -52,6 +51,10 @@ class AgentClientProtocol(Protocol):
 
     def get_habitat_route(self, current: str, destination: str) -> dict[str, Any]: ...
     def get_closure_status(self, habitat: str | None = None) -> dict[str, Any]: ...
+
+    def analyze_animal_image(
+        self, image_bytes: bytes, *, filename: str, content_type: str
+    ) -> dict[str, Any]: ...
 
 
 load_dotenv(PROJECT_ROOT / ".env")
@@ -77,7 +80,7 @@ def get_cookie_manager() -> stx.CookieManager:
 def get_client() -> AgentClientProtocol:
     if os.getenv("ZOO_UI_FAKE_MODE") == "1":
         return FakeAgentClient()
-    return AgentClient(os.getenv("BACKEND_URL", "http://127.0.0.1:8000"))
+    return AgentClient(os.getenv("BACKEND_URL", "http://192.100.200.198:8000/"))
 
 
 def initialize_state() -> None:

@@ -20,7 +20,7 @@ def test_health_ok_when_postgres_and_redis_reachable() -> None:
         STORAGE_MODE="persistent",
         DATABASE_URL="postgresql://zoo:zoo@127.0.0.1:5432/zoo",
         REDIS_URL="redis://127.0.0.1:6380/0",
-        MCP_SERVER_URL="http://127.0.0.1:1/mcp",  # 이 테스트는 MCP는 검사하지 않음
+        MCP_SERVER_URL="http://192.100.200.199:8100/mcp",  # 이 테스트는 MCP는 검사하지 않음
     )
     ensure_schema(get_connection_pool(dsn=settings.DATABASE_URL))
 

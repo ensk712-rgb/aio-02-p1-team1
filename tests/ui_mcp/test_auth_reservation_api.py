@@ -87,10 +87,6 @@ def test_login_reservation_and_admin_approval_flow(tmp_path) -> None:
     action = created.json()["pending_action"]
     action_id = action["action_id"]
     assert action["approval_status"] == "pending"
-    restored_pending = client.get(
-        "/api/reservations/pending-action", headers=headers
-    ).json()["pending_action"]
-    assert restored_pending["action_id"] == action_id
 
     # 사용자 확인 전에는 실제 예약과 관리자 승인 목록이 변경되지 않는다.
     assert client.get("/api/admin/reservations/pending", headers=headers).status_code == 403
@@ -101,9 +97,6 @@ def test_login_reservation_and_admin_approval_flow(tmp_path) -> None:
     )
     assert confirmed.status_code == 200
     assert confirmed.json()["status"] == "completed"
-    assert client.get(
-        "/api/reservations/pending-action", headers=headers
-    ).json()["pending_action"] is None
     reservation_id = confirmed.json()["reservation"]["action_id"]
 
     admin_login = client.post(

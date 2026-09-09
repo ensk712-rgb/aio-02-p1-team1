@@ -115,14 +115,39 @@ def _search_persistent(query: str, collection: str, top_k: int) -> list[Retrieve
     with pool.connection() as conn:
         rows = conn.execute(
             """
-            SELECT doc_id, title, page, text, collection,
-                   (embedding <=> %s::vector) AS distance
+            SELECT
+                doc_id,
+                title,
+                page,
+                text,
+                collection,
+                (embedding <=> %s::vector) AS distance,
+                CASE
+                    WHEN POSITION(LOWER(title) IN LOWER(%s)) > 0 THEN 1.0
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM unnest(keywords) AS keyword
+                        WHERE char_length(keyword) >= 2
+                          AND POSITION(LOWER(keyword) IN LOWER(%s)) > 0
+                    ) THEN 0.8
+                    ELSE 0.0
+                END AS lexical_score
             FROM document_chunks
             WHERE collection = %s
-            ORDER BY embedding <=> %s::vector, doc_id ASC
+            ORDER BY
+                lexical_score DESC,
+                embedding <=> %s::vector,
+                doc_id ASC
             LIMIT %s
             """,
-            (query_embedding, collection, query_embedding, top_k),
+            (
+                query_embedding,
+                query,
+                query,
+                collection,
+                query_embedding,
+                top_k,
+            ),
         ).fetchall()
 
     return [
@@ -132,7 +157,13 @@ def _search_persistent(query: str, collection: str, top_k: int) -> list[Retrieve
             page=row[2],
             text=row[3],
             collection=row[4],
-            score=round(max(0.0, 1.0 - float(row[5])), 4),
+            score=round(
+                max(
+                    float(row[6]),
+                    1.0 - float(row[5]),
+                ),
+                4,
+            ),
         )
         for row in rows
     ]

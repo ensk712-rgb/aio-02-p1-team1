@@ -81,20 +81,6 @@ class PendingActionRepository:
             item["approval_status"] = "completed"
             return self._public(item)
 
-    def get_pending_for_session(self, session_id: str) -> dict[str, Any] | None:
-        """새로고침된 화면이 동일 로그인 세션의 미처리 요청을 복원한다."""
-        with self._lock:
-            pending = [
-                item
-                for item in self._items.values()
-                if item["session_id"] == session_id
-                and item["approval_status"] == "pending"
-                and self._now() < datetime.fromisoformat(item["expires_at"])
-            ]
-            if not pending:
-                return None
-            return self._public(max(pending, key=lambda item: item["created_at"]))
-
     @staticmethod
     def _public(item: dict[str, Any]) -> dict[str, Any]:
         return {

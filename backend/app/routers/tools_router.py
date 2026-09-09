@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 
 from backend.app.schemas.common import ToolRunResult
+from backend.app.services import vision_service
 from backend.app.tools import zoo_tools
 from backend.app.tools.course_weather_policy import recommend_course_with_weather
 
@@ -82,5 +83,19 @@ def create_tools_router() -> APIRouter:
     async def public_weather(region: str = "서울") -> ToolRunResult:
         """현재 날씨와 5일 예보를 사용자 화면에 제공한다."""
         return zoo_tools.lookup_public_weather(region)
+
+    @router.post("/api/tools/animal-image-analysis", response_model=ToolRunResult)
+    async def animal_image_analysis(image: UploadFile = File(...)) -> ToolRunResult:
+        """업로드된 사진을 Vision 모델로 분석해 동물 설명을 반환한다(이미지 인식 분석)."""
+        content_type = image.content_type or ""
+        if not content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="이미지 파일만 업로드할 수 있습니다.",
+            )
+        image_bytes = await image.read()
+        return await vision_service.analyze_animal_image(
+            image_bytes, content_type=content_type
+        )
 
     return router
