@@ -8,7 +8,7 @@ ApprovalService는 사용자 확인용 Pending Action만 생성한다.
 from __future__ import annotations
 
 from fastapi import FastAPI
-
+import asyncio
 from backend.app.agents.runtime import RuntimeSettings
 from backend.app.core import db as db_module
 from backend.app.core import redis_client as redis_client_module
@@ -43,6 +43,7 @@ class _PersistenceHealth:
     create_app()에 전달된 settings를 명시적으로 넘겨야 한다 — 전역 캐시된
     get_settings()에만 의존하면 테스트 등에서 다른 Settings를 주입해도
     무시되고 원래 프로세스의 DATABASE_URL/REDIS_URL을 보게 된다.
+
     """
 
     def __init__(self, settings: Settings) -> None:
@@ -177,12 +178,16 @@ def create_app(
     return application
 
 
-def _retrieve_animal_info_for_executor(
+async def _retrieve_animal_info_for_executor(
     query: str,
     collection: str,
 ) -> ExecutorToolRunResult:
-    """rag_service의 ToolRunResult(schemas.common)를 Executor 계약(schemas.tools)으로 정규화한다."""
-    result = retrieve_animal_info(query, collection)
+    """RAG 동기 검색을 별도 작업 스레드에서 실행한다."""
+    result = await asyncio.to_thread(
+        retrieve_animal_info,
+        query,
+        collection,
+    )
     return ExecutorToolRunResult.model_validate(result.model_dump())
 
 

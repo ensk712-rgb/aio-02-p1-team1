@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
@@ -48,7 +48,7 @@ class McpClientProtocol(Protocol):
         """검증된 MCP Tool 이름과 인자를 받아 실행 결과를 반환한다."""
 
 
-RagSearchFunction = Callable[[str, str], ToolRunResult]
+RagSearchFunction = Callable[[str, str], Awaitable[ToolRunResult]]
 
 # ApprovalService.propose_reservation()과 같은 형태의 함수만 받는다.
 ReservationProposalFunction = Callable[..., dict[str, Any]]
@@ -130,7 +130,7 @@ class ToolExecutor:
                 return limit_error
 
             rag_input = validated_arguments
-            return self._rag_search(rag_input.query, rag_input.collection)
+            return await self._rag_search(rag_input.query, rag_input.collection)
 
         if name == RESERVATION_TOOL_NAME:
             limit_error = self._record_attempt(state, repeat_key)
