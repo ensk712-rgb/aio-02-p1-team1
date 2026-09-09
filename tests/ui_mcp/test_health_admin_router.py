@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.app.core.config import Settings
+from backend.app.main import create_app
 from backend.app.routers.admin_router import create_admin_router
 from backend.app.routers.health_router import create_health_router
 
@@ -40,6 +42,33 @@ def test_health_reports_actual_mcp_state() -> None:
     assert degraded.status_code == 503
     assert degraded.json()["mcp"] == "unavailable"
     assert degraded.json()["status"] == "degraded"
+
+
+def test_cors_uses_configured_origin_allowlist() -> None:
+    app = create_app(
+        Settings(
+            _env_file=None,
+            APP_MODE="mock",
+            CORS_ALLOW_ORIGINS="http://localhost:8501,http://192.100.200.198:8501",
+        )
+    )
+    client = TestClient(app)
+    allowed = client.options(
+        "/api/agent/ask",
+        headers={
+            "Origin": "http://localhost:8501",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    blocked = client.options(
+        "/api/agent/ask",
+        headers={
+            "Origin": "http://untrusted.example",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert allowed.headers["access-control-allow-origin"] == "http://localhost:8501"
+    assert "access-control-allow-origin" not in blocked.headers
 
 
 def _admin_client(token: str) -> TestClient:

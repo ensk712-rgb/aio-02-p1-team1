@@ -43,6 +43,7 @@ class Settings(BaseSettings):
 
     # Backend 자체 주소
     BACKEND_URL: str = "http://127.0.0.1:8000"
+    CORS_ALLOW_ORIGINS: str = "http://localhost:8501"
 
     # RAG 설정
     RAG_TOP_K: int = 3
