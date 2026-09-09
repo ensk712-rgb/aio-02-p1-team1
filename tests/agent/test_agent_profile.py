@@ -37,6 +37,7 @@ def test_zoo_guide_profile_allows_animal_cards_only() -> None:
 
     assert profile.allowed_rag_collections == ("animal_cards",)
 
+
 def test_zoo_guide_profile_includes_reservation_safety_instructions() -> None:
     """예약에는 필수 정보 확인과 사용자 확인 전 실행 금지 지침이 있어야 한다."""
     profile = get_agent_profile("zoo_guide")
@@ -47,8 +48,7 @@ def test_zoo_guide_profile_includes_reservation_safety_instructions() -> None:
 
 def test_zoo_guide_profile_instructs_outdoor_course_trigger() -> None:
     """실외 코스를 명시적으로 요청하면 get_outdoor_course_info를 쓰라는 유도
-    문구가 있어야 한다(P1-B 계획서 §5.0, 9단계). 날씨에 따른 실내 전용 선택은
-    Backend Runtime이 자동으로 하므로 Agent가 직접 하지 말라는 지침도 필요하다."""
+    문구가 있어야 한다. 실내 전용 선택은 Backend Runtime이 자동 처리한다."""
     profile = get_agent_profile("zoo_guide")
 
     assert "get_outdoor_course_info" in profile.instructions

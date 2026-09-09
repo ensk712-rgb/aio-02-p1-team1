@@ -38,10 +38,17 @@ def test_ticket_scope_input_rejects_invalid_arguments(
 
 
 def test_course_info_input_accepts_available_minutes_with_defaults() -> None:
-    """available_minutes만 있으면 child_accompanying/current는 기본값을 쓴다(P1-B §5.1)."""
-    minimal = CourseInfoInput.model_validate({"available_minutes": 120}, strict=True)
+    """available_minutes만 있으면 child_accompanying/current는 기본값을 쓴다."""
+    minimal = CourseInfoInput.model_validate(
+        {"available_minutes": 120},
+        strict=True,
+    )
     full = CourseInfoInput.model_validate(
-        {"available_minutes": 90, "child_accompanying": True, "current": "  해양관  "},
+        {
+            "available_minutes": 90,
+            "child_accompanying": True,
+            "current": "  해양관  ",
+        },
         strict=True,
     )
 
@@ -65,7 +72,7 @@ def test_course_info_input_accepts_available_minutes_with_defaults() -> None:
 def test_course_info_input_rejects_invalid_arguments(
     arguments: dict[str, object],
 ) -> None:
-    """필수값 누락, 범위 밖 시간, 계약에 없는 추가 인자(옛 name 등)는 거절해야 한다."""
+    """필수값 누락, 범위 밖 시간, 이전 name 인자는 거절해야 한다."""
     with pytest.raises(ValidationError):
         CourseInfoInput.model_validate(arguments, strict=True)
 
