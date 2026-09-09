@@ -160,15 +160,16 @@ class TicketScopeInput(BaseModel):
 
 
 class CourseInfoInput(BaseModel):
-    """관람 코스 조회 Tool의 엄격한 입력 형식이다.
-
-    name=None이면 전체 코스 목록을, 지정하면 해당 코스 하나를 조회한다
-    (check_closure_status의 habitat=None 패턴과 동일).
+    """맞춤 코스 추천 Tool(get_course_info/get_indoor_course_info/
+    get_outdoor_course_info)의 엄격한 입력 형식이다. 세 Tool이 이 계약을
+    동일하게 공유한다(P1-B 맞춤 코스 추천 계획서 §5.1).
     """
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    name: StrictStr | None = Field(default=None, min_length=1, max_length=100)
+    available_minutes: StrictInt = Field(ge=1, le=600)
+    child_accompanying: bool = False
+    current: StrictStr = Field(default="정문", min_length=1, max_length=100)
 
 
 class PublicWeatherInput(BaseModel):
@@ -185,3 +186,18 @@ class PublicWeatherInput(BaseModel):
         max_length=100,
         description="날씨를 조회할 지역 이름",
     )
+
+
+class PublicWeatherData(BaseModel):
+    """날씨 조회 Tool(lookup_public_weather)이 성공했을 때 반환하는 데이터다.
+
+    실제 값은 Open-Meteo API의 WMO weather code를 condition 4종으로 매핑한
+    결과다(P1-B 맞춤 코스 추천 계획서 §5.2.1).
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    region: str = Field(min_length=1)
+    condition: Literal["clear", "cloudy", "rain", "storm"]
+    indoor_recommended: bool
+    as_of: datetime

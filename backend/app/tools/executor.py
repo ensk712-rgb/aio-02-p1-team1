@@ -23,6 +23,7 @@ from backend.app.schemas.tools import (
     CourseInfoInput,
     FeedingScheduleInput,
     HabitatRouteInput,
+    PublicWeatherInput,
     ReservationToolInput,
     TicketScopeInput,
     ToolError,
@@ -50,17 +51,11 @@ class McpClientProtocol(Protocol):
 
 RagSearchFunction = Callable[[str, str], Awaitable[ToolRunResult]]
 
-# ApprovalService.propose_reservation()과 같은 형태의 함수만 받는다.
 ReservationProposalFunction = Callable[..., dict[str, Any]]
 
 
 class ToolExecutor:
-    """허용된 Tool만 검증한 뒤 안전하게 실행하는 Backend 컴포넌트다.
-
-    - RAG Tool: Backend 내부 검색 함수를 호출한다.
-    - 조회 Tool: MCP Server로 호출한다.
-    - 예약 Tool: MCP가 아닌 Backend 내부 승인 서비스로 전달한다.
-    """
+    """허용된 Tool만 검증한 뒤 안전하게 실행하는 Backend 컴포넌트다."""
 
     def __init__(
         self,
@@ -73,17 +68,6 @@ class ToolExecutor:
         mcp_timeout_seconds: float = 10.0,
         mcp_retry_count: int = 1,
     ) -> None:
-        """실제 기능을 생성자가 주입받아 테스트와 운영 환경을 분리한다.
-
-        Args:
-            rag_search: 동물 정보 검색 함수다.
-            mcp_client: 먹이시간·휴장·경로·코스 조회를 담당하는 MCP Client다.
-            reservation_proposer: 예약 확인 대기 정보를 만드는 Backend 함수다.
-            max_same_tool_calls: 같은 Tool과 같은 인자의 최대 실행 횟수다.
-            max_tool_calls: 한 Agent 실행에서 허용하는 전체 Tool 실행 횟수다.
-            mcp_timeout_seconds: MCP 응답을 기다리는 최대 시간이다.
-            mcp_retry_count: MCP timeout 발생 시 재시도 횟수다.
-        """
         self._rag_search = rag_search
         self._mcp_client = mcp_client
         self._reservation_proposer = reservation_proposer
@@ -96,7 +80,6 @@ class ToolExecutor:
         self,
         profile: AgentProfile,
     ) -> list[ProviderToolSchema]:
-        """Profile 정책과 MCP 발견 결과를 합쳐 Provider용 Tool 목록을 만든다."""
         discovered_tools = await self._mcp_client.list_tools()
         return get_tool_definitions(profile, discovered_tools)
 
@@ -108,11 +91,6 @@ class ToolExecutor:
         profile: AgentProfile,
         state: AgentState,
     ) -> ToolRunResult:
-        """Tool 이름과 인자를 검증한 뒤에만 실제 기능을 실행한다.
-
-        잘못된 Tool 이름, 허용되지 않은 Tool, 잘못된 인자는 외부 시스템을
-        호출하기 전에 정책 오류로 반환한다.
-        """
         validated_arguments = self._validate_arguments(
             name=name,
             arguments=arguments,
@@ -177,11 +155,6 @@ class ToolExecutor:
         validated_arguments: BaseModel,
         state: AgentState,
     ) -> ToolRunResult:
-        """예약을 생성하지 않고 사용자 확인용 Pending Action만 만든다.
-
-        실제 예약은 사용자가 확인 버튼을 누른 뒤 별도 승인 흐름에서 처리한다.
-        따라서 이 함수는 예약 번호나 완료 결과를 만들지 않는다.
-        """
         if self._reservation_proposer is None:
             return self._policy_error(
                 code="RESERVATION_NOT_CONFIGURED",
@@ -226,7 +199,6 @@ class ToolExecutor:
         state: AgentState,
         repeat_key: str,
     ) -> ToolRunResult | None:
-        """반복 실행 제한과 전체 Tool 실행 제한을 적용한다."""
         if state.repeat_counts.get(repeat_key, 0) >= self._max_same_tool_calls:
             return self._policy_error(
                 code="REPEAT_LIMIT_REACHED",
@@ -250,11 +222,6 @@ class ToolExecutor:
         arguments: Mapping[str, Any],
         profile: AgentProfile,
     ) -> BaseModel | ToolRunResult:
-        """Tool 권한과 Pydantic 입력 모델을 검사한다.
-
-        각 허용 Tool 이름을 Pydantic 입력 모델에 명시적으로 연결한다.
-        이 연결이 없으면 Tool이 Profile에 있더라도 실행하지 않아야 한다.
-        """
         if name == "retrieve_animal_info":
             if "animal_cards" not in profile.allowed_rag_collections:
                 return self._policy_error(
@@ -277,6 +244,9 @@ class ToolExecutor:
                 "find_habitat_route": HabitatRouteInput,
                 "lookup_ticket_scope": TicketScopeInput,
                 "get_course_info": CourseInfoInput,
+                "get_indoor_course_info": CourseInfoInput,
+                "get_outdoor_course_info": CourseInfoInput,
+                "lookup_public_weather": PublicWeatherInput,
                 RESERVATION_TOOL_NAME: ReservationToolInput,
             }
             input_model = input_models.get(name)
@@ -297,7 +267,6 @@ class ToolExecutor:
 
     @staticmethod
     def _create_repeat_key(name: str, arguments: BaseModel) -> str:
-        """같은 Tool과 같은 인자를 안정적으로 비교할 반복 제한 키를 만든다."""
         normalized_arguments = json.dumps(
             arguments.model_dump(mode="json"),
             ensure_ascii=False,
@@ -308,7 +277,6 @@ class ToolExecutor:
 
     @staticmethod
     def _policy_error(code: str, message: str) -> ToolRunResult:
-        """외부 Tool을 실행하지 않고 정책 차단 결과를 만든다."""
         return ToolRunResult(
             success=False,
             data={},

@@ -9,6 +9,7 @@ from backend.app.agents.runtime import RuntimeSettings, run_agent
 from backend.app.providers.mock_provider import ScriptedMockProvider
 from backend.app.schemas.agent import AgentAskRequest, ModelToolCall, ModelTurn
 from backend.app.schemas.tools import ToolRunResult
+from backend.app.tools import course_weather_policy
 from backend.app.tools.executor import ToolExecutor
 
 
@@ -239,3 +240,225 @@ def test_no_conversation_history_leaves_instructions_unchanged() -> None:
     )
 
     assert provider.call_history[0].instructions == profile.instructions
+
+
+# ---- §6.2 날씨 선조회 + 동적 Allowlist 좁히기 (10단계) ----
+
+
+def _monkeypatch_weather(monkeypatch, *, condition: str) -> None:
+    def _fake(region: str, *, now=None):
+        as_of = now or datetime.now(timezone.utc)
+        return ToolRunResult(
+            success=True,
+            data={
+                "region": region,
+                "condition": condition,
+                "indoor_recommended": condition in {"rain", "storm"},
+                "as_of": as_of.isoformat(),
+            },
+            error=None,
+            source="open_meteo_forecast",
+            retrieved_at=as_of,
+        )
+
+    monkeypatch.setattr(course_weather_policy, "lookup_public_weather", _fake)
+
+
+def test_runtime_blocks_get_course_info_when_narrowed_by_rain(monkeypatch) -> None:
+    """비가 오면 get_course_info가 narrowing으로 빠지므로, Provider가 그래도
+    제안해도 실행 검증 단계에서 차단돼야 한다 — Tool 발견만 막고 실행은
+    안 막으면 우회가 가능해지므로, 이 테스트는 그 우회가 안 되는지 확인한다
+    (P1-B 계획서 §6.2 "적용 범위 확인")."""
+    _monkeypatch_weather(monkeypatch, condition="rain")
+    mcp_client = FakeMcpClient()
+    provider = ScriptedMockProvider(
+        [
+            ModelTurn(
+                response_id="response_1",
+                calls=[
+                    ModelToolCall(
+                        call_id="call_1",
+                        name="get_course_info",
+                        arguments_json='{"available_minutes": 120}',
+                    )
+                ],
+            )
+        ]
+    )
+
+    response = asyncio.run(
+        run_agent(
+            AgentAskRequest(message="2시간 코스 추천해 줘"),
+            get_agent_profile("zoo_guide"),
+            provider=provider,
+            executor=create_executor(mcp_client),
+            settings=RuntimeSettings(),
+        )
+    )
+
+    assert response.status == "rejected"
+    assert mcp_client.calls == []
+
+    narrowing_traces = [
+        item for item in response.trace if item.stage == "course_tool_narrowed_by_weather"
+    ]
+    assert len(narrowing_traces) == 1
+    assert narrowing_traces[0].data["weather_lookup_succeeded"] is True
+    assert narrowing_traces[0].data["condition"] == "rain"
+
+
+def test_runtime_allows_indoor_course_info_when_narrowed_by_rain(monkeypatch) -> None:
+    """비가 오면 반대로 get_indoor_course_info는 정상적으로 허용돼야 한다."""
+    _monkeypatch_weather(monkeypatch, condition="rain")
+    mcp_client = FakeMcpClient()
+    provider = ScriptedMockProvider(
+        [
+            ModelTurn(
+                response_id="response_1",
+                calls=[
+                    ModelToolCall(
+                        call_id="call_1",
+                        name="get_indoor_course_info",
+                        arguments_json='{"available_minutes": 120}',
+                    )
+                ],
+            ),
+            ModelTurn(response_id="response_2", text="실내 코스를 추천합니다."),
+        ]
+    )
+
+    response = asyncio.run(
+        run_agent(
+            AgentAskRequest(message="실내 코스 추천해 줘"),
+            get_agent_profile("zoo_guide"),
+            provider=provider,
+            executor=create_executor(mcp_client),
+            settings=RuntimeSettings(),
+        )
+    )
+
+    assert response.status == "completed"
+    assert mcp_client.calls[0][0] == "get_indoor_course_info"
+
+
+def test_runtime_blocks_indoor_course_info_when_narrowed_by_clear_weather(
+    monkeypatch,
+) -> None:
+    """맑으면 반대로 get_indoor_course_info가 빠지고 get_course_info만 허용된다."""
+    _monkeypatch_weather(monkeypatch, condition="clear")
+    mcp_client = FakeMcpClient()
+    provider = ScriptedMockProvider(
+        [
+            ModelTurn(
+                response_id="response_1",
+                calls=[
+                    ModelToolCall(
+                        call_id="call_1",
+                        name="get_indoor_course_info",
+                        arguments_json='{"available_minutes": 120}',
+                    )
+                ],
+            )
+        ]
+    )
+
+    response = asyncio.run(
+        run_agent(
+            AgentAskRequest(message="코스 추천해 줘"),
+            get_agent_profile("zoo_guide"),
+            provider=provider,
+            executor=create_executor(mcp_client),
+            settings=RuntimeSettings(),
+        )
+    )
+
+    assert response.status == "rejected"
+    assert mcp_client.calls == []
+
+
+def test_runtime_narrows_even_for_unrelated_questions(monkeypatch) -> None:
+    """코스와 무관한 질문에도 narrowing 자체는 항상 실행돼야 한다(계획서
+    §6.2, v0.4 §9.1 — Backend가 의도를 미리 분류하는 단계가 없으므로)."""
+    weather_calls: list[str] = []
+
+    def _fake(region: str, *, now=None):
+        weather_calls.append(region)
+        return ToolRunResult(
+            success=True,
+            data={
+                "region": region,
+                "condition": "clear",
+                "indoor_recommended": False,
+                "as_of": datetime.now(timezone.utc).isoformat(),
+            },
+            error=None,
+            source="open_meteo_forecast",
+            retrieved_at=datetime.now(timezone.utc),
+        )
+
+    monkeypatch.setattr(course_weather_policy, "lookup_public_weather", _fake)
+
+    mcp_client = FakeMcpClient()
+    provider = ScriptedMockProvider(
+        [
+            ModelTurn(
+                response_id="response_1",
+                calls=[
+                    ModelToolCall(
+                        call_id="call_1",
+                        name="get_feeding_schedule",
+                        arguments_json='{"habitat": "해양관"}',
+                    )
+                ],
+            ),
+            ModelTurn(response_id="response_2", text="답변"),
+        ]
+    )
+
+    asyncio.run(
+        run_agent(
+            AgentAskRequest(message="펭귄 먹이시간 알려줘"),
+            get_agent_profile("zoo_guide"),
+            provider=provider,
+            executor=create_executor(mcp_client),
+            settings=RuntimeSettings(),
+        )
+    )
+
+    assert weather_calls == ["서울"]
+
+
+def test_runtime_allows_outdoor_course_info_regardless_of_weather(monkeypatch) -> None:
+    """§10: get_outdoor_course_info는 날씨 narrowing 대상이 아니므로 비가
+    오든 맑든 항상 정상적으로 실행돼야 한다(계획서 §5.0)."""
+    for condition in ("rain", "clear"):
+        _monkeypatch_weather(monkeypatch, condition=condition)
+        mcp_client = FakeMcpClient()
+        provider = ScriptedMockProvider(
+            [
+                ModelTurn(
+                    response_id="response_1",
+                    calls=[
+                        ModelToolCall(
+                            call_id="call_1",
+                            name="get_outdoor_course_info",
+                            arguments_json='{"available_minutes": 120}',
+                        )
+                    ],
+                ),
+                ModelTurn(response_id="response_2", text="실외 코스를 추천합니다."),
+            ]
+        )
+
+        response = asyncio.run(
+            run_agent(
+                AgentAskRequest(message="야외 동물만 보고 싶어"),
+                get_agent_profile("zoo_guide"),
+                provider=provider,
+                executor=create_executor(mcp_client),
+                settings=RuntimeSettings(),
+            )
+        )
+
+        assert response.status == "completed", f"condition={condition}"
+        assert mcp_client.calls[0][0] == "get_outdoor_course_info"

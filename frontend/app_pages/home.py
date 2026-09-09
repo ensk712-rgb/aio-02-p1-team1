@@ -55,18 +55,6 @@ with rail:
     render_chat_panel(client)
 
     with st.container(border=True):
-        st.subheader("MCP 도구 상태", icon=":material/hub:")
-        try:
-            health = client.get_health()
-            connected = health.get("status") == "ok" and health.get("mcp") == "ok"
-            st.markdown(f'<span class="zoo-status-dot"></span> **{"모두 연결됨" if connected else "일부 연결 불가"}**', unsafe_allow_html=True)
-            for label in ("동물 정보", "지도 서비스", "먹이주기 일정"):
-                st.caption(f"{'✓' if connected else '–'} {label}")
-        except AgentClientError:
-            st.warning("안내 서버 상태를 확인할 수 없습니다.", icon=":material/cloud_off:")
-        st.caption("화면 시연용 상태를 포함합니다.")
-
-    with st.container(border=True):
         st.subheader("실시간 혼잡도", icon=":material/groups:")
         st.progress(0.43, text="보통")
         st.caption("오전 시간대에는 여유롭게 관람할 수 있어요. · 시연용 Mock")

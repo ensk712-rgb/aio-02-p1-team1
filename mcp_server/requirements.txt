@@ -1,7 +1,7 @@
 fastapi
 google-genai
 httpx
-mcp>=1.27,<2
+mcp[cli]>=1.27,<2
 openai
 pgvector
 psycopg[binary]

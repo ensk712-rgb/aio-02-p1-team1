@@ -136,3 +136,20 @@ def test_ask_agent_hides_unexpected_error_details() -> None:
         "요청 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
     )
     assert "내부 구현" not in response.text
+
+
+def test_stream_agent_returns_delta_and_done_events() -> None:
+    service = FakeAgentService()
+    client = create_client(service)
+
+    response = client.post(
+        "/api/agent/ask/stream",
+        json={"message": "펭귄 먹이시간 알려줘"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "event: delta" in response.text
+    assert '"text": "테스트 응답입니다."' in response.text
+    assert "event: done" in response.text
+    assert '"session_id": "session_router_test"' in response.text

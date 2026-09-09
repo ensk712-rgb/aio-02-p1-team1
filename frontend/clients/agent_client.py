@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -33,6 +35,53 @@ class AgentClient:
         headers = {"X-Auth-Session": auth_session_id} if auth_session_id else {}
         return self._request("POST", "/api/agent/ask", json=payload, headers=headers)
 
+    def ask_stream(
+        self,
+        message: str,
+        session_id: str | None = None,
+        *,
+        auth_session_id: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        payload: dict[str, Any] = {"message": message}
+        if session_id:
+            payload["session_id"] = session_id
+        headers = {
+            "Accept": "text/event-stream",
+            **({"X-Auth-Session": auth_session_id} if auth_session_id else {}),
+        }
+        try:
+            with httpx.stream(
+                "POST",
+                f"{self._base_url}/api/agent/ask/stream",
+                json=payload,
+                headers=headers,
+                timeout=self._timeout,
+            ) as response:
+                response.raise_for_status()
+                event_name = "message"
+                data_lines: list[str] = []
+                for line in response.iter_lines():
+                    if not line:
+                        if data_lines:
+                            yield {
+                                "event": event_name,
+                                "data": json.loads("\n".join(data_lines)),
+                            }
+                        event_name, data_lines = "message", []
+                    elif line.startswith("event:"):
+                        event_name = line[6:].strip()
+                    elif line.startswith("data:"):
+                        data_lines.append(line[5:].strip())
+        except (httpx.TimeoutException, httpx.RequestError) as error:
+            raise AgentClientError(
+                "실시간 안내 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+                kind="connection",
+            ) from error
+        except (httpx.HTTPStatusError, json.JSONDecodeError) as error:
+            raise AgentClientError(
+                "실시간 응답을 처리하지 못했습니다.", kind="invalid_response"
+            ) from error
+
     def get_health(self) -> dict[str, Any]:
         return self._request("GET", "/api/health")
 
@@ -49,6 +98,13 @@ class AgentClient:
             "/api/auth/logout",
             headers={"X-Auth-Session": auth_session_id},
             allow_empty=True,
+        )
+
+    def get_auth_session(self, auth_session_id: str) -> dict[str, Any]:
+        return self._request(
+            "GET",
+            "/api/auth/session",
+            headers={"X-Auth-Session": auth_session_id},
         )
 
     def create_reservation(
@@ -114,6 +170,50 @@ class AgentClient:
             headers={"X-Auth-Session": auth_session_id},
             json={"decision": decision},
         )
+
+    def get_habitat_route(self, current: str, destination: str) -> dict[str, Any]:
+        """GET /api/tools/habitat-route를 호출한다(P1-B 계획서 §11.4, 15단계)."""
+        return self._request(
+            "GET",
+            "/api/tools/habitat-route",
+            params={"current": current, "destination": destination},
+        )
+
+    def get_closure_status(self, habitat: str | None = None) -> dict[str, Any]:
+        """GET /api/tools/closure-status를 호출한다(§11.3 "휴장 상태 반영", 15단계).
+
+        habitat을 생략하면 전체 시설의 휴장 상태를 items 목록으로 받는다.
+        """
+        params: dict[str, Any] = {}
+        if habitat is not None:
+            params["habitat"] = habitat
+        return self._request("GET", "/api/tools/closure-status", params=params)
+
+    def get_course_info(
+        self,
+        *,
+        available_minutes: int,
+        child_accompanying: bool = False,
+        current: str = "정문",
+    ) -> dict[str, Any]:
+        """GET /api/tools/course-info를 호출한다(P1-B 계획서 §11.4, 14단계).
+
+        scope는 넘기지 않는다 — 화면(관람 동선 추천)은 항상 §6.2와 같은
+        날씨 기반 자동 선택을 그대로 써야 채팅 화면과 같은 조건에서 다른
+        코스를 보여주지 않는다.
+        """
+        return self._request(
+            "GET",
+            "/api/tools/course-info",
+            params={
+                "available_minutes": available_minutes,
+                "child_accompanying": child_accompanying,
+                "current": current,
+            },
+        )
+
+    def get_public_weather(self, region: str = "서울") -> dict[str, Any]:
+        return self._request("GET", "/api/tools/public-weather", params={"region": region})
 
     def _request(
         self, method: str, path: str, *, allow_empty: bool = False, **kwargs: Any

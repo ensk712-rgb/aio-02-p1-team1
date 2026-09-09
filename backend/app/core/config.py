@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     # 승인 TTL·세션 TTL·전체 timeout에는 적용하지 않는다(실제 시계 사용).
     DEMO_NOW: str = ""
 
+    # P1-B: 맞춤 코스 추천 날씨 Tool (Open-Meteo). 비상업용 Forecast API는 키
+    # 없이도 호출 가능하므로 비워 둬도 된다 — 나중에 유료/커머셜 티어로 옮길
+    # 때만 채운다(P1-B 계획서 §5.2.1).
+    OPEN_METEO_API_KEY: str = ""
+
     @property
     def project_root(self) -> Path:
         return PROJECT_ROOT

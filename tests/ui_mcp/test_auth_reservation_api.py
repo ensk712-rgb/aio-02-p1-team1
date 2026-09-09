@@ -48,6 +48,21 @@ def test_login_rejects_wrong_password_without_echo(tmp_path) -> None:
     assert "1234" not in response.text
 
 
+def test_auth_session_can_restore_login_until_logout(tmp_path) -> None:
+    client, _ = _client(tmp_path)
+    login = client.post(
+        "/api/auth/login", json={"user_id": "TEST", "password": "1234"}
+    ).json()
+    headers = {"X-Auth-Session": login["auth_session_id"]}
+
+    restored = client.get("/api/auth/session", headers=headers)
+    assert restored.status_code == 200
+    assert restored.json() == {"success": True, "user_id": "TEST", "role": "user"}
+
+    assert client.post("/api/auth/logout", headers=headers).status_code == 204
+    assert client.get("/api/auth/session", headers=headers).status_code == 401
+
+
 def test_login_reservation_and_admin_approval_flow(tmp_path) -> None:
     client, _ = _client(tmp_path)
     login = client.post(

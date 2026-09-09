@@ -28,13 +28,15 @@ st.set_page_config(
 
 st.html("""
 <style>
-:root { --admin-navy:#102f3a; --admin-cyan:#19a9c6; --admin-paper:#f4f8f7; }
-[data-testid="stAppViewContainer"] { background:linear-gradient(135deg,#edf7f4,#f9f5e9); }
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+:root { --ink-panel:#0e2a21; --ink-panel-2:#163b30; --leaf-bright:#9fd7b4; --moss-soft:#e6f2ec; --sand:#e1e9e4; }
+html, body, [data-testid="stAppViewContainer"] { font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Noto Sans KR","Malgun Gothic",sans-serif; }
+[data-testid="stAppViewContainer"] { background:linear-gradient(135deg,#f3f7f4,var(--moss-soft)); }
 [data-testid="stHeader"] { background:transparent; }
 .block-container { max-width:1280px; padding-top:1.4rem; }
-.admin-hero { padding:32px 38px; border-radius:24px; color:white; background:radial-gradient(circle at 85% 20%,rgba(75,220,184,.35),transparent 28%),linear-gradient(105deg,#07303a,#0f7871); box-shadow:0 18px 45px rgba(16,47,58,.18); }
+.admin-hero { padding:32px 38px; border-radius:14px; color:white; background:radial-gradient(circle at 85% 20%,rgba(159,215,180,.32),transparent 28%),linear-gradient(105deg,var(--ink-panel),var(--ink-panel-2)); box-shadow:0 18px 45px rgba(14,42,33,.20); }
 .admin-hero h1 { margin:.2rem 0; }
-div[data-testid="stVerticalBlockBorderWrapper"] { border-color:#d7e6df; box-shadow:0 10px 26px rgba(16,47,58,.07); }
+div[data-testid="stVerticalBlockBorderWrapper"] { border-color:var(--sand); box-shadow:0 10px 26px rgba(14,42,33,.07); }
 </style>
 """)
 
@@ -102,6 +104,24 @@ with st.container(horizontal=True, horizontal_alignment="right"):
     st.button("로그아웃", icon=":material/logout:", on_click=logout, key="admin_logout")
 
 st.caption(f"담당 계정 · {st.session_state.admin_user_id}")
+
+with st.container(border=True):
+    st.subheader("MCP 도구 상태", icon=":material/hub:")
+    try:
+        health = client.get_health()
+        connected = health.get("status") == "ok" and health.get("mcp") == "ok"
+        status_columns = st.columns(4)
+        status_columns[0].metric("전체 상태", "정상" if connected else "확인 필요")
+        status_columns[1].metric("Backend", str(health.get("backend", "unknown")))
+        status_columns[2].metric("MCP", str(health.get("mcp", "unknown")))
+        status_columns[3].metric("실행 모드", str(health.get("app_mode", "unknown")))
+        if connected:
+            st.success("동물 정보·지도·먹이주기 도구가 연결되어 있습니다.", icon=":material/check_circle:")
+        else:
+            st.warning("일부 도구 연결을 확인해 주세요.", icon=":material/warning:")
+    except AgentClientError as error:
+        st.error(str(error), icon=":material/cloud_off:")
+
 notice = st.session_state.get("admin_notice")
 if isinstance(notice, dict):
     if notice.get("level") == "error":

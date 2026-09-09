@@ -1,8 +1,11 @@
 """POST /api/agent/ask 요청을 처리하는 Agent Router를 구현한다."""
 
+import asyncio
+import json
 from typing import Annotated, Protocol
 
 from fastapi import APIRouter, Header, HTTPException, status
+from fastapi.responses import StreamingResponse
 
 from backend.app.schemas.agent import AgentAskRequest, AgentAskResponse
 from backend.app.services.agent_orchestration_service import InvalidSessionError
@@ -64,5 +67,54 @@ def create_agent_router(service: AgentServiceProtocol) -> APIRouter:
                     "잠시 후 다시 시도해 주세요."
                 ),
             ) from error
+
+    @router.post("/api/agent/ask/stream")
+    async def stream_agent(
+        request: AgentAskRequest,
+        auth_session_id: Annotated[
+            str | None,
+            Header(alias="X-Auth-Session"),
+        ] = None,
+    ) -> StreamingResponse:
+        """Agent 결과를 SSE 이벤트로 전달한다.
+
+        현재 Runtime의 단일 응답 계약은 보존하고, 완성된 답변을 짧은 delta로
+        나누어 전송한다. 마지막 done 이벤트에는 기존 응답 전체를 담는다.
+        """
+        async def event_stream():
+            try:
+                if auth_session_id is None:
+                    response = await service.handle_ask(request)
+                else:
+                    response = await service.handle_ask(
+                        request, auth_session_id=auth_session_id
+                    )
+                answer = response.final_answer
+                for start in range(0, len(answer), 12):
+                    payload = json.dumps(
+                        {"text": answer[start:start + 12]}, ensure_ascii=False
+                    )
+                    yield f"event: delta\ndata: {payload}\n\n"
+                    await asyncio.sleep(0)
+                done = json.dumps(response.model_dump(mode="json"), ensure_ascii=False)
+                yield f"event: done\ndata: {done}\n\n"
+            except InvalidSessionError:
+                payload = json.dumps(
+                    {"detail": "유효하지 않거나 만료된 세션입니다."},
+                    ensure_ascii=False,
+                )
+                yield f"event: error\ndata: {payload}\n\n"
+            except Exception:
+                payload = json.dumps(
+                    {"detail": "요청 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."},
+                    ensure_ascii=False,
+                )
+                yield f"event: error\ndata: {payload}\n\n"
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     return router
