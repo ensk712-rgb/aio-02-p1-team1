@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
 
 PROJECT_ROOT_PATH = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT_PATH) not in sys.path:
@@ -55,6 +58,7 @@ def initialize_state() -> None:
     st.session_state.setdefault("admin_processing_action", None)
     st.session_state.setdefault("admin_notice", None)
     st.session_state.setdefault("admin_trace_result", None)
+    st.session_state.setdefault("admin_trace_session_id", None)
 
 
 def logout() -> None:
@@ -70,6 +74,7 @@ def logout() -> None:
     st.session_state.admin_processing_action = None
     st.session_state.admin_notice = None
     st.session_state.admin_trace_result = None
+    st.session_state.admin_trace_session_id = None
 
 
 initialize_state()
@@ -180,42 +185,124 @@ for item in items:
                     st.session_state.admin_processing_action = None
                 st.rerun()
 
+def _format_time(value: object) -> str:
+    """UTC 저장 시각을 관리자 화면에서 KST로 표시한다."""
+    if not isinstance(value, str):
+        return "시각 정보 없음"
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+    return moment.astimezone(ZoneInfo("Asia/Seoul")).strftime("%m-%d %H:%M")
+
+
+def _redact(value: Any, key: str = "") -> Any:
+    """상세 화면의 예약·인증 관련 값을 마스킹한다."""
+    secret_keys = {"headcount", "visit_time", "user_id", "session_id", "authorization", "token"}
+    if key.lower() in secret_keys:
+        return "***"
+    if isinstance(value, dict):
+        return {item_key: _redact(item_value, item_key) for item_key, item_value in value.items()}
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    return value
+
+
+def _status_label(status_value: str) -> str:
+    labels = {
+        "completed": "완료",
+        "error": "오류",
+        "rejected": "차단",
+        "stopped": "중단",
+        "needs_clarification": "추가 정보 필요",
+        "confirmation_required": "사용자 확인 대기",
+    }
+    return labels.get(status_value, status_value)
+
+
 st.divider()
 st.subheader("Agent 실행 Trace", icon=":material/monitoring:")
-st.caption("사용자 화면의 Agent 세션 ID로 최근 실행 상태와 Tool 처리 내역을 조회합니다.")
-with st.form("admin_trace_search"):
-    trace_session_id = st.text_input(
-        "Agent 세션 ID",
-        placeholder="예: guest-...",
-        key="admin_trace_session_id",
-    )
-    trace_submitted = st.form_submit_button(
-        "Trace 조회", icon=":material/search:", width="stretch"
-    )
+st.caption("최근 24시간의 실행 세션을 선택하면 상세 Trace를 확인할 수 있습니다. 질문과 예약 정보는 마스킹됩니다.")
 
-if trace_submitted:
-    if not trace_session_id.strip():
-        st.warning("조회할 Agent 세션 ID를 입력해 주세요.", icon=":material/warning:")
-    else:
-        try:
-            st.session_state.admin_trace_result = client.get_admin_trace(
-                st.session_state.admin_auth_session_id,
-                trace_session_id.strip(),
-            )
-        except AgentClientError as error:
-            st.error(str(error), icon=":material/error:")
+try:
+    trace_sessions = client.list_admin_trace_sessions(st.session_state.admin_auth_session_id).get("sessions", [])
+except AgentClientError as error:
+    trace_sessions = []
+    st.error(str(error), icon=":material/error:")
+
+header, refresh_column = st.columns([5, 1], vertical_alignment="bottom")
+with header:
+    st.caption(f"최근 세션 {len(trace_sessions)}개 · 상세 Trace는 실행 후 2시간까지 보관됩니다.")
+with refresh_column:
+    if st.button("새로고침", icon=":material/refresh:", key="admin_trace_refresh", width="stretch"):
+        st.rerun()
+
+if not trace_sessions:
+    st.info("최근 24시간에 실행된 Agent 세션이 없습니다.", icon=":material/inbox:")
+else:
+    session_lookup = {str(item["session_id"]): item for item in trace_sessions}
+    options = list(session_lookup)
+    selected_session = st.selectbox(
+        "최근 Agent 세션",
+        options,
+        key="admin_trace_session_id",
+        format_func=lambda session_id: (
+            f"[{_status_label(str(session_lookup[session_id].get('status', 'unknown')))}] "
+            f"{_format_time(session_lookup[session_id].get('last_run_at'))} · "
+            f"{session_lookup[session_id].get('question_preview', '질문 내용 없음')}"
+        ),
+    )
+    if selected_session not in session_lookup:
+        selected_session = options[0]
+    selected_summary = session_lookup[selected_session]
+    tools = selected_summary.get("tools") or []
+    st.caption(f"Tool: {', '.join(map(str, tools)) if tools else '호출 없음'}")
+
+    try:
+        st.session_state.admin_trace_result = client.get_admin_trace(
+            st.session_state.admin_auth_session_id, selected_session
+        )
+    except AgentClientError as error:
+        st.session_state.admin_trace_result = None
+        st.error(str(error), icon=":material/error:")
 
 trace_result = st.session_state.get("admin_trace_result")
 if isinstance(trace_result, dict):
     runs = trace_result.get("runs", [])
-    if not runs:
-        st.info("해당 세션의 Trace가 없습니다.", icon=":material/info:")
-    for run in reversed(runs):
-        run_id = str(run.get("run_id", "run"))
-        status_value = str(run.get("status", "unknown"))
-        with st.expander(f"{run_id} · {status_value}", expanded=True):
-            trace = run.get("trace", [])
-            if trace:
-                st.json(trace, expanded=1)
-            else:
-                st.caption("기록된 세부 이벤트가 없습니다.")
+    if trace_result.get("detail_expired"):
+        st.info("상세 실행 기록이 만료되었습니다. 목록 요약은 24시간 동안 유지됩니다.", icon=":material/schedule:")
+    elif not runs:
+        st.info("기록된 상세 Trace가 없습니다.", icon=":material/info:")
+    else:
+        latest = runs[-1]
+        all_tools = {
+            str(item.get("data", {}).get("tool"))
+            for run in runs
+            for item in run.get("trace", [])
+            if isinstance(item, dict) and isinstance(item.get("data"), dict) and item["data"].get("tool")
+        }
+        summary_columns = st.columns(4)
+        summary_columns[0].metric("최종 상태", _status_label(str(latest.get("status", "unknown"))))
+        summary_columns[1].metric("실행 횟수", len(runs))
+        summary_columns[2].metric("호출 Tool", len(all_tools))
+        summary_columns[3].metric("종료 사유", str(next((item.get("data", {}).get("reason") for item in latest.get("trace", []) if isinstance(item, dict) and item.get("stage") == "run_finished"), "-")))
+
+        for run in reversed(runs):
+            run_id = str(run.get("run_id", "run"))
+            status_value = str(run.get("status", "unknown"))
+            with st.expander(f"{run_id} · {_status_label(status_value)}", expanded=True):
+                trace = run.get("trace", [])
+                if trace:
+                    for item in trace:
+                        if not isinstance(item, dict):
+                            continue
+                        stage = str(item.get("stage") or item.get("event") or "event")
+                        owner = str(item.get("owner", "runtime"))
+                        data = _redact(item.get("data", {}))
+                        st.markdown(f"**{owner}** · `{stage}`")
+                        if data:
+                            st.json(data, expanded=False)
+                    with st.expander("원본 Trace JSON (마스킹됨)", expanded=False):
+                        st.json(_redact(trace), expanded=False)
+                else:
+                    st.caption("기록된 세부 이벤트가 없습니다.")
