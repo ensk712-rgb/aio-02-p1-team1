@@ -37,12 +37,13 @@ class Settings(BaseSettings):
     ADMIN_TOKEN: str = ""
 
     # MCP 연결
-    MCP_SERVER_URL: str = "http://127.0.0.1:8100/mcp"
+    MCP_SERVER_URL: str = "http://192.100.200.199:8100/mcp"
     MCP_HOST: str = "127.0.0.1"
     MCP_PORT: int = 8100
 
     # Backend 자체 주소
-    BACKEND_URL: str = "http://127.0.0.1:8000"
+    BACKEND_URL: str = "http://192.100.200.198:8000/"
+    CORS_ALLOW_ORIGINS: str = "http://localhost:8501"
 
     # RAG 설정
     RAG_TOP_K: int = 3
@@ -66,6 +67,10 @@ class Settings(BaseSettings):
     # P1: 예약 승인 / 세션
     PENDING_TTL_SECONDS: int = 120
     SESSION_TTL_SECONDS: int = 7200
+
+    # 예약/확인대기 영구 저장 (STORAGE_MODE의 pgvector/Redis 전환과는 별개 스위치다 —
+    # 예약만 먼저 Postgres로 옮기고 RAG/세션은 memory로 남겨두는 조합도 가능해야 한다)
+    RESERVATION_STORAGE_MODE: Literal["memory", "persistent"] = "memory"
 
     # 교육용 Mock "지금" 기준 시각. 비우면 실제 Asia/Seoul 현재 시간을 쓴다.
     # 승인 TTL·세션 TTL·전체 timeout에는 적용하지 않는다(실제 시계 사용).

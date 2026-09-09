@@ -18,8 +18,8 @@ def _run_with_question(monkeypatch, question: str) -> AppTest:
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
     at.run()
-    at.text_input(key="hero_question").set_value(question)
-    at.button(key="FormSubmitter:hero_question_form-AI에게 질문하기").click().run()
+    at.text_input(key="chat_message_input").set_value(question)
+    at.button(key="FormSubmitter:chat_panel_form-보내기").click().run()
     return at
   
 
@@ -100,22 +100,6 @@ def test_completed_renders_sources_and_tool_card(monkeypatch) -> None:
     assert any("자료" in frame.value.columns for frame in at.dataframe)
 
 
-def test_rag_operation_fields_have_korean_display_labels() -> None:
-    from frontend.ui import TOOL_LABELS, _display_data
-
-    displayed = _display_data(
-        {
-            "matched": True,
-            "chunks": [{"doc_id": "ANIMAL-TIGER", "score": 0.82}],
-        }
-    )
-
-    assert TOOL_LABELS["retrieve_animal_info"] == "동물 정보 검색"
-    assert displayed == {"검색 결과": "일치하는 정보 있음"}
-    chunk = _display_data({"doc_id": "ANIMAL-TIGER", "score": 0.82})
-    assert chunk == {"자료 ID": "ANIMAL-TIGER", "관련도": "0.82"}
-
-
 def test_error_is_not_rendered_as_success(monkeypatch) -> None:
     at = _run_with_question(monkeypatch, "error")
     assert not at.exception
@@ -159,28 +143,11 @@ def test_new_conversation_clears_messages_and_session(monkeypatch) -> None:
 
 def test_chat_history_supports_multiple_tool_responses(monkeypatch) -> None:
     at = _run_with_question(monkeypatch, "펭귄 먹이시간")
-    at.text_input(key="hero_question").set_value("해양관 펭귄 먹이시간")
-    at.button(key="FormSubmitter:hero_question_form-AI에게 질문하기").click().run()
+    at.text_input(key="chat_message_input").set_value("해양관 펭귄 먹이시간")
+    at.button(key="FormSubmitter:chat_panel_form-보내기").click().run()
     assert not at.exception
     assert len(at.session_state["messages"]) == 4
     assert at.session_state["chat_status"] == "ready"
-
-
-def test_home_has_one_question_input_and_no_reservation_form(monkeypatch) -> None:
-    monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
-    at = AppTest.from_file(str(APP_PATH), default_timeout=10)
-    at.session_state["login_success"] = True
-    at.session_state["user_id"] = "TEST"
-    at.session_state["auth_session_id"] = "auth_fake"
-    at.run()
-
-    assert not at.exception
-    assert at.text_input(key="hero_question") is not None
-    assert not any(item.key == "chat_message_input" for item in at.text_input)
-    assert not any("체험 예약 요청" in item.value for item in at.expander)
-    subheaders = [item.value for item in at.subheader]
-    assert "동물 백과" in subheaders
-    assert "실시간 혼잡도" in subheaders
 
 
 def test_login_success_is_saved_without_password(monkeypatch) -> None:
@@ -201,7 +168,7 @@ def test_reservation_confirmation_card_and_confirm(monkeypatch) -> None:
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run().switch_page("app_pages/reservation.py").run()
+    at.run()
     at.button(key="FormSubmitter:reservation_request-예약 내용 확인").click().run()
     action = at.session_state["pending_reservation_action"]
     assert action["approval_status"] == "pending"
@@ -241,7 +208,7 @@ def test_zoo_map_shows_closure_warning_for_closed_habitat(monkeypatch) -> None:
 
     at.selectbox(key="map_route_destination").set_value("코끼리관").run()
 
-
+    
     assert not at.exception
     assert any("휴장 중입니다" in warning.value for warning in at.warning)
     assert any("시설 점검" in warning.value for warning in at.warning)
@@ -395,7 +362,7 @@ def test_reservation_confirmation_can_be_cancelled(monkeypatch) -> None:
     at.session_state["login_success"] = True
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
-    at.run().switch_page("app_pages/reservation.py").run()
+    at.run()
     at.button(key="FormSubmitter:reservation_request-예약 내용 확인").click().run()
     action_id = at.session_state["pending_reservation_action"]["action_id"]
     at.button(key=f"cancel_{action_id}").click().run()

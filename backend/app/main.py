@@ -8,6 +8,7 @@ ApprovalService는 사용자 확인용 Pending Action만 생성한다.
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 from backend.app.agents.runtime import RuntimeSettings
 from backend.app.core import db as db_module
@@ -22,8 +23,14 @@ from backend.app.repositories import (
     trace_repository,
 )
 from backend.app.repositories.auth_session_repository import AuthSessionRepository
-from backend.app.repositories.pending_action_repository import PendingActionRepository
-from backend.app.repositories.reservation_repository import ReservationRepository
+from backend.app.repositories.pending_action_repository import (
+    PendingActionRepository,
+    PostgresPendingActionRepository,
+)
+from backend.app.repositories.reservation_repository import (
+    PostgresReservationRepository,
+    ReservationRepository,
+)
 from backend.app.repositories.user_repository import UserRepository
 from backend.app.routers.admin_router import create_admin_router
 from backend.app.routers.agent_router import create_agent_router
@@ -87,10 +94,21 @@ def create_app(
     auth_sessions = auth_sessions or AuthSessionRepository(
         ttl_seconds=settings.SESSION_TTL_SECONDS
     )
-    reservations = reservations or ReservationRepository()
-    pending_actions = pending_actions or PendingActionRepository(
-        ttl_seconds=settings.PENDING_TTL_SECONDS
-    )
+    if settings.RESERVATION_STORAGE_MODE == "persistent":
+        db_module.ensure_reservation_schema(db_module.get_connection_pool(dsn=settings.DATABASE_URL))
+
+    if reservations is None:
+        reservations = (
+            PostgresReservationRepository()
+            if settings.RESERVATION_STORAGE_MODE == "persistent"
+            else ReservationRepository()
+        )
+    if pending_actions is None:
+        pending_actions = (
+            PostgresPendingActionRepository(ttl_seconds=settings.PENDING_TTL_SECONDS)
+            if settings.RESERVATION_STORAGE_MODE == "persistent"
+            else PendingActionRepository(ttl_seconds=settings.PENDING_TTL_SECONDS)
+        )
 
     user_repository.initialize()
 
@@ -140,6 +158,18 @@ def create_app(
     application = FastAPI(
         title="Zoo Visit Guide API",
         version="0.3.0",
+    )
+    cors_origins = [
+        origin.strip()
+        for origin in settings.CORS_ALLOW_ORIGINS.split(",")
+        if origin.strip()
+    ]
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
     )
 
     application.include_router(

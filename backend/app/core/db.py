@@ -58,6 +58,43 @@ def ensure_schema(pool: ConnectionPool | None = None) -> None:
         conn.commit()
 
 
+_RESERVATION_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS reservations (
+    action_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    program TEXT NOT NULL,
+    visit_time TEXT NOT NULL,
+    headcount INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL,
+    decided_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS reservations_user_id_idx ON reservations (user_id);
+CREATE INDEX IF NOT EXISTS reservations_status_idx ON reservations (status);
+
+CREATE TABLE IF NOT EXISTS pending_reservation_actions (
+    action_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    arguments JSONB NOT NULL,
+    summary TEXT NOT NULL,
+    approval_status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    decided_at TIMESTAMPTZ
+);
+"""
+
+
+def ensure_reservation_schema(pool: ConnectionPool | None = None) -> None:
+    """예약/확인대기 테이블(reservations, pending_reservation_actions)이 없으면 만든다."""
+    pool = pool or get_connection_pool()
+    with pool.connection() as conn:
+        conn.execute(_RESERVATION_SCHEMA_SQL)
+        conn.commit()
+
+
 def check_postgres() -> bool:
     """Postgres 연결이 살아있는지 가볍게 확인한다."""
     try:

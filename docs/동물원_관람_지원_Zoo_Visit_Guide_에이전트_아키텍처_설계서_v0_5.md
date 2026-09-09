@@ -768,6 +768,7 @@ idempotency_key = session_id + ":" + action_id
 
 ### 15.2 P1 확장 API
 
+<<<<<<< HEAD:docs/동물원_관람_지원_Zoo_Visit_Guide_에이전트_아키텍처_설계서_v0_5.md
 | Method   | Endpoint                                                                          | 역할                                                                                                                                                                                                          | 인증/승인                      |
 | -------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
 | `POST` | `/api/agent/confirm`                                                            | Pending Action 확인 후 실행(`session_id` 필수)                                                                                                                                                              | 유효한 action + 세션 일치 필요 |
@@ -780,6 +781,21 @@ idempotency_key = session_id + ":" + action_id
 | `GET`  | `/api/tools/habitat-route?current=&destination=`                                | `find_habitat_route` 직접 실행(7.1 참조)                                                                                                                                                                    | 게스트 세션 허용               |
 | `GET`  | `/api/tools/course-info?available_minutes=&child_accompanying=&current=&scope=` | 코스 추천 Tool 3종(5.5·7.1 참조) 직접 실행,`scope` 생략 시 날씨 선조회로 `get_course_info`/`get_indoor_course_info` 중 자동 선택, `scope=outdoor_only` 명시 시 `get_outdoor_course_info` 직접 호출 | 게스트 세션 허용               |
 | `GET`  | `/api/tools/closure-status?habitat=`                                            | `check_closure_status` 직접 실행, `habitat` 생략 시 전체 시설 반환(7.1 참조)                                                                                                                              | 게스트 세션 허용               |
+=======
+| Method   | Endpoint                                                                          | 역할                                                                                        | 인증/승인                      |
+| -------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------ |
+| `POST` | `/api/agent/confirm`                                                            | Pending Action 확인 후 실행(`session_id` 필수)                                            | 유효한 action + 세션 일치 필요 |
+| `POST` | `/api/reservations`                                                             | 예약 변경 Tool 실행 전 사용자 확인 생성                                                     | 사용자 로그인 세션             |
+| `GET`  | `/api/reservations/mine`                                                        | 사용자 예약 상태 조회                                                                       | 사용자 로그인 세션             |
+| `GET`  | `/api/admin/reservations/pending`                                               | 관리자 승인 대기 목록                                                                       | 관리자 로그인 세션             |
+| `POST` | `/api/admin/reservations/{action_id}/decision`                                  | 관리자 승인·거절                                                                           | 관리자 로그인 세션             |
+| `GET`  | `/api/agent/stream?session_id=`                                                 | Agent 응답 스트림(SSE)                                                                      | session 필요                   |
+| `POST` | `/api/media/stt`                                                                | 음성을 텍스트로 변환                                                                        | 선택 구현, Day-1 제외          |
+| `POST` | `/api/media/tts`                                                                | 답변을 음성으로 변환                                                                        | 선택 구현, Day-1 제외          |
+| `GET`  | `/api/tools/habitat-route?current=&destination=`                                | `find_habitat_route` 직접 실행(P1-B §11.4)                                               | 게스트 세션 허용               |
+| `GET`  | `/api/tools/course-info?available_minutes=&child_accompanying=&current=&scope=` | 코스 추천 Tool 3종 직접 실행,`scope` 생략 시 §6.2 날씨 선조회로 자동 선택(P1-B §11.4)   | 게스트 세션 허용               |
+| `GET`  | `/api/tools/closure-status?habitat=`                                            | `check_closure_status` 직접 실행, `habitat` 생략 시 전체 시설 반환(P1-B §11.3·15단계) | 게스트 세션 허용               |
+>>>>>>> 91bba5c62eef311917173aa91a4c518a6c7e95fa:docs/동물원_관람_지원(Zoo_Visit_Guide)_AI_에이전트_개발_계획서_v0.4.md
 
 > ⚠️ v0.2 대비 변경: `confirm`과 SSE는 P0 API에서 분리했습니다. P2 음성 화면은 브라우저 Web Speech API의 음성 인식·합성을 사용하고 질문만 기존 `/api/agent/ask`로 전달하므로 별도 STT/TTS Backend API를 만들지 않습니다. P0은 `/api/health`, `/api/agent/ask`, `/api/admin/trace` 3개만으로 P0 시나리오 전체를 시연할 수 있습니다.
 > `/api/tools/*` 3종은 Agent/LLM을 거치지 않는 조회 전용 엔드포인트로, `read` Tool과 동일한 수준의 접근을 허용해 인증 없이 게스트도 호출할 수 있다. `/api/tools/course-info`는 Agent 경로(6.1.1 N-05)가 사용하는 날씨 선조회·Tool 선택 로직을 그대로 재사용해야 하며 별도로 다시 구현하지 않는다(중복 구현 방지, 채팅 화면과 다른 결과를 보여주지 않도록 함).
@@ -805,6 +821,7 @@ idempotency_key = session_id + ":" + action_id
 
 ## 16. 파일별 책임
 
+<<<<<<< HEAD:docs/동물원_관람_지원_Zoo_Visit_Guide_에이전트_아키텍처_설계서_v0_5.md
 | 파일                                                      | 책임                                                                                                      | 우선순위 |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------- |
 | `backend/app/agents/models.py`                          | `AgentProfile` 정의                                                                                     | P0       |
@@ -838,6 +855,30 @@ idempotency_key = session_id + ":" + action_id
 | `frontend/app_pages/voice_assistant.py`                 | Web Speech STT/TTS와 기존 ask API를 연결한 음성 안내 화면                                                 | P2       |
 | `backend/app/repositories/pending_action_repository.py` | PostgreSQL 기반 Pending Action 저장·원자적 claim                                                         | P2       |
 | `backend/app/repositories/reservation_repository.py`    | PostgreSQL 기반 예약 저장·멱등성                                                                         | P2       |
+=======
+| 파일                                                      | 책임                                          | 우선순위 |
+| --------------------------------------------------------- | --------------------------------------------- | -------- |
+| `backend/app/agents/models.py`                          | `AgentProfile` 정의                         | P0       |
+| `backend/app/agents/zoo_guide_agent.py`                 | Goal, Instructions, Allowed Tools             | P0       |
+| `backend/app/agents/registry.py`                        | `zoo_guide` Profile 조회                    | P0       |
+| `backend/app/agents/runtime.py`                         | LLM·RAG·Tool 반복과 종료 통제               | P0       |
+| `backend/app/services/agent_orchestration_service.py`   | 질문, 결과 조립                               | P0       |
+| `backend/app/services/rag_service.py`                   | 검색과 출처 답변(7.4절 계약 적용)             | P0       |
+| `backend/app/tools/registry.py`                         | Tool 명세와 위험도 연결                       | P0       |
+| `backend/app/tools/executor.py`                         | Allowlist와 arguments 검증                    | P0       |
+| `backend/app/mcp_client/client.py`                      | MCP Tool 발견과 호출                          | P0       |
+| `mcp_server/server.py`                                  | `create_mcp_server()`와 Tool 등록           | P0       |
+| `frontend/app.py`                                       | Streamlit 관람객 화면                         | P0       |
+| `frontend/clients/agent_client.py`                      | ask API 호출                                  | P0       |
+| `frontend/image/`                                       | 사용자 화면 로컬 jpg/png/pdf 자산             | P0       |
+| `frontend_admin/app.py`                                 | 관리자 로그인·예약 승인·Trace 화면          | P0+      |
+| `backend/app/routers/auth_router.py`                    | 사용자·관리자 최소 DB 로그인                 | P0+      |
+| `backend/app/repositories/auth_session_repository.py`   | role 포함 로그인 세션과 TTL                   | P0+      |
+| `backend/app/repositories/pending_action_repository.py` | 예약 Snapshot TTL 저장과 consume              | P1       |
+| `backend/app/repositories/session_memory_repository.py` | 세션 대화·조건 저장                          | P1       |
+| `mcp_server/tools/public_data.py`                       | 날씨 공공데이터 Tool                          | P1       |
+| `backend/app/services/approval_service.py`              | Backend 로컬 예약 변경 Tool 승인 흐름(손영민) | P1       |
+>>>>>>> 91bba5c62eef311917173aa91a4c518a6c7e95fa:docs/동물원_관람_지원(Zoo_Visit_Guide)_AI_에이전트_개발_계획서_v0.4.md
 
 ---
 

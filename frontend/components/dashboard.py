@@ -34,13 +34,5 @@ def render_animal_card() -> None:
         st.caption("대나무를 주식으로 하는 중국의 국보급 동물이에요.")
 
 
-def render_crowding_card() -> None:
-    with st.container(border=True, height="stretch"):
-        st.subheader("실시간 혼잡도", icon=":material/groups:")
-        st.progress(0.43, text="보통")
-        st.caption("오전 시간대에는 여유롭게 관람할 수 있어요.")
-        st.caption("시연용 Mock · 현장 상황에 따라 달라질 수 있습니다.")
-
-
 def current_time_label() -> str:
     return datetime.now().astimezone().strftime("%H:%M")

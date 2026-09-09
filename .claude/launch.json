@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "streamlit", "run", "frontend/app.py", "--server.port", "8501", "--server.headless", "true"],
       "port": 8501
+    },
+    {
+      "name": "frontend_admin",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "streamlit", "run", "frontend_admin/app.py", "--server.port", "8502", "--server.headless", "true"],
+      "port": 8502
     }
   ]
 }
