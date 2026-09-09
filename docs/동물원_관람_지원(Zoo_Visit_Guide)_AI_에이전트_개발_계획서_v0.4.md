@@ -767,29 +767,29 @@ idempotency_key = session_id + ":" + action_id
 
 ### 15.1 Day-1 (P0) API
 
-| Method   | Endpoint                         | 역할                       | 인증/승인        |
-| -------- | -------------------------------- | -------------------------- | ---------------- |
-| `GET`  | `/api/health`                  | Backend 기본 상태 확인     | 없음             |
-| `POST` | `/api/auth/login`             | DB 사용자·관리자 로그인    | 없음             |
-| `POST` | `/api/auth/logout`            | 로그인 세션 삭제            | 로그인 세션      |
-| `POST` | `/api/agent/ask`               | Agent 질문 실행(동기 HTTP) | 게스트 세션 허용 |
+| Method   | Endpoint                         | 역할                       | 인증/승인                    |
+| -------- | -------------------------------- | -------------------------- | ---------------------------- |
+| `GET`  | `/api/health`                  | Backend 기본 상태 확인     | 없음                         |
+| `POST` | `/api/auth/login`              | DB 사용자·관리자 로그인   | 없음                         |
+| `POST` | `/api/auth/logout`             | 로그인 세션 삭제           | 로그인 세션                  |
+| `POST` | `/api/agent/ask`               | Agent 질문 실행(동기 HTTP) | 게스트 세션 허용             |
 | `GET`  | `/api/admin/trace?session_id=` | 세션 Trace 조회            | 관리자 세션 또는 ADMIN_TOKEN |
 
 ### 15.2 P1 확장 API
 
-| Method   | Endpoint                          | 역할                                             | 인증/승인                      |
-| -------- | --------------------------------- | ------------------------------------------------ | ------------------------------ |
-| `POST` | `/api/agent/confirm`            | Pending Action 확인 후 실행(`session_id` 필수) | 유효한 action + 세션 일치 필요 |
-| `POST` | `/api/reservations`             | 예약 변경 Tool 실행 전 사용자 확인 생성         | 사용자 로그인 세션             |
-| `GET`  | `/api/reservations/mine`        | 사용자 예약 상태 조회                           | 사용자 로그인 세션             |
-| `GET`  | `/api/admin/reservations/pending` | 관리자 승인 대기 목록                         | 관리자 로그인 세션             |
-| `POST` | `/api/admin/reservations/{action_id}/decision` | 관리자 승인·거절                   | 관리자 로그인 세션             |
-| `GET`  | `/api/agent/stream?session_id=` | Agent 응답 스트림(SSE)                           | session 필요                   |
-| `POST` | `/api/media/stt`                | 음성을 텍스트로 변환                             | 선택 구현, Day-1 제외          |
-| `POST` | `/api/media/tts`                | 답변을 음성으로 변환                             | 선택 구현, Day-1 제외          |
-| `GET`  | `/api/tools/habitat-route?current=&destination=` | `find_habitat_route` 직접 실행(P1-B §11.4) | 게스트 세션 허용 |
-| `GET`  | `/api/tools/course-info?available_minutes=&child_accompanying=&current=&scope=` | 코스 추천 Tool 3종 직접 실행, `scope` 생략 시 §6.2 날씨 선조회로 자동 선택(P1-B §11.4) | 게스트 세션 허용 |
-| `GET`  | `/api/tools/closure-status?habitat=` | `check_closure_status` 직접 실행, `habitat` 생략 시 전체 시설 반환(P1-B §11.3·15단계) | 게스트 세션 허용 |
+| Method   | Endpoint                                                                          | 역할                                                                                        | 인증/승인                      |
+| -------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------ |
+| `POST` | `/api/agent/confirm`                                                            | Pending Action 확인 후 실행(`session_id` 필수)                                            | 유효한 action + 세션 일치 필요 |
+| `POST` | `/api/reservations`                                                             | 예약 변경 Tool 실행 전 사용자 확인 생성                                                     | 사용자 로그인 세션             |
+| `GET`  | `/api/reservations/mine`                                                        | 사용자 예약 상태 조회                                                                       | 사용자 로그인 세션             |
+| `GET`  | `/api/admin/reservations/pending`                                               | 관리자 승인 대기 목록                                                                       | 관리자 로그인 세션             |
+| `POST` | `/api/admin/reservations/{action_id}/decision`                                  | 관리자 승인·거절                                                                           | 관리자 로그인 세션             |
+| `GET`  | `/api/agent/stream?session_id=`                                                 | Agent 응답 스트림(SSE)                                                                      | session 필요                   |
+| `POST` | `/api/media/stt`                                                                | 음성을 텍스트로 변환                                                                        | 선택 구현, Day-1 제외          |
+| `POST` | `/api/media/tts`                                                                | 답변을 음성으로 변환                                                                        | 선택 구현, Day-1 제외          |
+| `GET`  | `/api/tools/habitat-route?current=&destination=`                                | `find_habitat_route` 직접 실행(P1-B §11.4)                                               | 게스트 세션 허용               |
+| `GET`  | `/api/tools/course-info?available_minutes=&child_accompanying=&current=&scope=` | 코스 추천 Tool 3종 직접 실행,`scope` 생략 시 §6.2 날씨 선조회로 자동 선택(P1-B §11.4)   | 게스트 세션 허용               |
+| `GET`  | `/api/tools/closure-status?habitat=`                                            | `check_closure_status` 직접 실행, `habitat` 생략 시 전체 시설 반환(P1-B §11.3·15단계) | 게스트 세션 허용               |
 
 > ⚠️ v0.2 대비 변경: `confirm`, SSE, STT/TTS를 Day-1 API에서 분리했습니다. Day-1은 `/api/health`, `/api/agent/ask`, `/api/admin/trace` 3개만으로 P0 시나리오(N-01~N-04, A-01~A-05, A-09~A-14) 전체를 시연할 수 있습니다.
 > `/api/tools/*` 3종은 Agent/LLM을 거치지 않는 조회 전용 엔드포인트로, `read` Tool과 동일한 수준의 접근을 허용해 인증 없이 게스트도 호출할 수 있다(P1-B 계획서 §11.4).
@@ -815,28 +815,28 @@ idempotency_key = session_id + ":" + action_id
 
 ## 16. 파일별 책임
 
-| 파일                                                      | 책임                                | 우선순위 |
-| --------------------------------------------------------- | ----------------------------------- | -------- |
-| `backend/app/agents/models.py`                          | `AgentProfile` 정의               | P0       |
-| `backend/app/agents/zoo_guide_agent.py`                 | Goal, Instructions, Allowed Tools   | P0       |
-| `backend/app/agents/registry.py`                        | `zoo_guide` Profile 조회          | P0       |
-| `backend/app/agents/runtime.py`                         | LLM·RAG·Tool 반복과 종료 통제     | P0       |
-| `backend/app/services/agent_orchestration_service.py`   | 질문, 결과 조립                     | P0       |
-| `backend/app/services/rag_service.py`                   | 검색과 출처 답변(7.4절 계약 적용)   | P0       |
-| `backend/app/tools/registry.py`                         | Tool 명세와 위험도 연결             | P0       |
-| `backend/app/tools/executor.py`                         | Allowlist와 arguments 검증          | P0       |
-| `backend/app/mcp_client/client.py`                      | MCP Tool 발견과 호출                | P0       |
-| `mcp_server/server.py`                                  | `create_mcp_server()`와 Tool 등록 | P0       |
-| `frontend/app.py`                                       | Streamlit 관람객 화면               | P0       |
-| `frontend/clients/agent_client.py`                      | ask API 호출                        | P0       |
-| `frontend/image/`                                       | 사용자 화면 로컬 jpg/png/pdf 자산   | P0       |
-| `frontend_admin/app.py`                                 | 관리자 로그인·예약 승인·Trace 화면  | P0+      |
-| `backend/app/routers/auth_router.py`                    | 사용자·관리자 최소 DB 로그인        | P0+      |
-| `backend/app/repositories/auth_session_repository.py`   | role 포함 로그인 세션과 TTL         | P0+      |
-| `backend/app/repositories/pending_action_repository.py` | 예약 Snapshot TTL 저장과 consume    | P1       |
-| `backend/app/repositories/session_memory_repository.py` | 세션 대화·조건 저장                | P1       |
-| `mcp_server/tools/public_data.py`                       | 날씨 공공데이터 Tool                | P1       |
-| `backend/app/services/approval_service.py`              | Backend 로컬 예약 변경 Tool 승인 흐름(손영민) | P1 |
+| 파일                                                      | 책임                                          | 우선순위 |
+| --------------------------------------------------------- | --------------------------------------------- | -------- |
+| `backend/app/agents/models.py`                          | `AgentProfile` 정의                         | P0       |
+| `backend/app/agents/zoo_guide_agent.py`                 | Goal, Instructions, Allowed Tools             | P0       |
+| `backend/app/agents/registry.py`                        | `zoo_guide` Profile 조회                    | P0       |
+| `backend/app/agents/runtime.py`                         | LLM·RAG·Tool 반복과 종료 통제               | P0       |
+| `backend/app/services/agent_orchestration_service.py`   | 질문, 결과 조립                               | P0       |
+| `backend/app/services/rag_service.py`                   | 검색과 출처 답변(7.4절 계약 적용)             | P0       |
+| `backend/app/tools/registry.py`                         | Tool 명세와 위험도 연결                       | P0       |
+| `backend/app/tools/executor.py`                         | Allowlist와 arguments 검증                    | P0       |
+| `backend/app/mcp_client/client.py`                      | MCP Tool 발견과 호출                          | P0       |
+| `mcp_server/server.py`                                  | `create_mcp_server()`와 Tool 등록           | P0       |
+| `frontend/app.py`                                       | Streamlit 관람객 화면                         | P0       |
+| `frontend/clients/agent_client.py`                      | ask API 호출                                  | P0       |
+| `frontend/image/`                                       | 사용자 화면 로컬 jpg/png/pdf 자산             | P0       |
+| `frontend_admin/app.py`                                 | 관리자 로그인·예약 승인·Trace 화면          | P0+      |
+| `backend/app/routers/auth_router.py`                    | 사용자·관리자 최소 DB 로그인                 | P0+      |
+| `backend/app/repositories/auth_session_repository.py`   | role 포함 로그인 세션과 TTL                   | P0+      |
+| `backend/app/repositories/pending_action_repository.py` | 예약 Snapshot TTL 저장과 consume              | P1       |
+| `backend/app/repositories/session_memory_repository.py` | 세션 대화·조건 저장                          | P1       |
+| `mcp_server/tools/public_data.py`                       | 날씨 공공데이터 Tool                          | P1       |
+| `backend/app/services/approval_service.py`              | Backend 로컬 예약 변경 Tool 승인 흐름(손영민) | P1       |
 
 ---
 

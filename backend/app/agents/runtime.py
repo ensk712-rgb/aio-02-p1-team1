@@ -135,6 +135,7 @@ async def run_agent(
             getattr(error, "status_code", None),
             getattr(error, "code", None),
             getattr(error, "param", None),
+            exc_info=True,
         )
         return _finish(
             state,

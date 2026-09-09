@@ -435,7 +435,9 @@ def lookup_public_weather(region: str, *, now: datetime | None = None) -> ToolRu
     params: dict[str, Any] = {
         "latitude": latitude,
         "longitude": longitude,
-        "current": "weather_code",
+        "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
+        "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+        "forecast_days": 5,
         "timezone": "Asia/Seoul",
     }
     if api_key:
@@ -448,7 +450,9 @@ def lookup_public_weather(region: str, *, now: datetime | None = None) -> ToolRu
             _OPEN_METEO_BASE_URL, params=params, timeout=_OPEN_METEO_TIMEOUT_SECONDS
         )
         response.raise_for_status()
-        weather_code = int(response.json()["current"]["weather_code"])
+        payload = response.json()
+        current = payload["current"]
+        weather_code = int(current["weather_code"])
     except (httpx.HTTPError, KeyError, ValueError, TypeError) as exc:
         return _weather_error_result(
             "WEATHER_LOOKUP_FAILED", f"날씨 조회에 실패했습니다: {exc}", now=now
@@ -459,8 +463,33 @@ def lookup_public_weather(region: str, *, now: datetime | None = None) -> ToolRu
         "region": validated.region,
         "condition": condition,
         "indoor_recommended": condition in {"rain", "storm"},
+        "current": {
+            "temperature_c": current.get("temperature_2m"),
+            "apparent_temperature_c": current.get("apparent_temperature"),
+            "humidity_percent": current.get("relative_humidity_2m"),
+            "wind_speed_kmh": current.get("wind_speed_10m"),
+            "weather_code": weather_code,
+            "condition": condition,
+        },
+        "forecast": [],
         "as_of": now.isoformat(),
     }
+    daily = payload.get("daily") or {}
+    for date_value, code, high, low, rain_probability in zip(
+        daily.get("time", []),
+        daily.get("weather_code", []),
+        daily.get("temperature_2m_max", []),
+        daily.get("temperature_2m_min", []),
+        daily.get("precipitation_probability_max", []),
+    ):
+        data["forecast"].append({
+            "date": date_value,
+            "weather_code": int(code),
+            "condition": _map_weather_code(int(code)),
+            "temperature_max_c": high,
+            "temperature_min_c": low,
+            "precipitation_probability_percent": rain_probability,
+        })
     _weather_cache[validated.region] = (now, data)
     return ToolRunResult(
         success=True,

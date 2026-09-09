@@ -33,4 +33,18 @@ def create_auth_router(users: UserRepository, sessions: AuthSessionRepository) -
     ) -> None:
         sessions.delete(auth_session_id)
 
+    @router.get("/api/auth/session")
+    async def get_session(
+        auth_session_id: Annotated[str | None, Header(alias="X-Auth-Session")] = None,
+    ) -> dict[str, str | bool]:
+        """브라우저에 남은 세션 ID를 검증하고 최소 사용자 정보만 반환한다."""
+        user_id = sessions.get_user_id(auth_session_id)
+        role = sessions.get_role(auth_session_id)
+        if user_id is None or role is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="유효하지 않거나 만료된 세션입니다.",
+            )
+        return {"success": True, "user_id": user_id, "role": role}
+
     return router

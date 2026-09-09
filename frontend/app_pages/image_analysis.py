@@ -1,0 +1,47 @@
+"""업로드 이미지의 안전한 기본 시각 특성 분석 화면."""
+
+from io import BytesIO
+
+import streamlit as st
+from PIL import Image, ImageStat, UnidentifiedImageError
+
+from frontend.components.layout import render_sidebar
+
+render_sidebar("image")
+st.title("이미지 인식 분석", icon=":material/image_search:")
+st.caption("동물 사진을 올리면 이미지의 기본 특성을 분석하고 촬영 상태를 안내합니다.")
+
+uploaded = st.file_uploader("분석할 이미지", type=["jpg", "jpeg", "png", "webp"], key="analysis_image")
+if uploaded is None:
+    st.info("JPG, PNG 또는 WEBP 이미지를 선택해 주세요. 최대 업로드 용량은 서버 설정을 따릅니다.")
+else:
+    try:
+        raw = uploaded.getvalue()
+        image = Image.open(BytesIO(raw))
+        image.verify()
+        image = Image.open(BytesIO(raw)).convert("RGB")
+        preview, result = st.columns([1.35, 1], gap="large")
+        with preview:
+            st.image(image, caption=uploaded.name, width="stretch")
+        with result:
+            st.subheader("분석 결과")
+            sample = image.copy()
+            sample.thumbnail((256, 256))
+            stats = ImageStat.Stat(sample)
+            rgb = tuple(round(value) for value in stats.mean[:3])
+            brightness = round(sum(rgb) / 3)
+            tone = "밝음" if brightness >= 180 else "보통" if brightness >= 90 else "어두움"
+            focus_hint = "세로형" if image.height > image.width else "가로형" if image.width > image.height else "정사각형"
+            st.metric("해상도", f"{image.width:,} × {image.height:,}")
+            st.write(f"**이미지 방향** · {focus_hint}")
+            st.write(f"**전체 밝기** · {tone} ({brightness}/255)")
+            st.write(f"**평균 대표색** · RGB {rgb}")
+            st.color_picker("대표색 미리보기", f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}", disabled=True)
+            if brightness < 70:
+                st.warning("사진이 어두워 대상 식별이 어려울 수 있습니다. 밝은 곳에서 다시 촬영해 보세요.")
+            else:
+                st.success("기본 이미지 판독을 완료했습니다.")
+        st.caption("현재 화면은 이미지 품질과 색상 특성을 분석합니다. 동물 종 자동 판별은 별도 Vision 모델 연동이 필요합니다.")
+    except (UnidentifiedImageError, OSError, ValueError):
+        st.error("올바른 이미지 파일을 읽을 수 없습니다. 다른 파일로 다시 시도해 주세요.")
+
