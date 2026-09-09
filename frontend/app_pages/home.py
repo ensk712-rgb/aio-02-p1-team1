@@ -14,6 +14,9 @@ from frontend.components.dashboard import (
 )
 from frontend.components.layout import render_sidebar
 
+from frontend.components.reservation import render_reservation
+
+
 client = get_client()
 render_sidebar("home")
 

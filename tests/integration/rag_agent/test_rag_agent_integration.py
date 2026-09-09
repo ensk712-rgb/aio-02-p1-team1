@@ -38,10 +38,17 @@ class FakeMcpClient:
         raise AssertionError("RAG 연결 시험에서 MCP 실행이 발생하면 안 됩니다.")
 
 
+async def _retrieve_animal_info_async(query: str, collection: str) -> ToolRunResult:
+    """ToolExecutor.execute_tool_safely가 ``await``하므로, 동기 rag_service를
+    비동기 경계로 감싼다 (backend/app/main.py::_retrieve_animal_info_for_executor와
+    동일한 방식 — 실제 운영 배선을 그대로 재현해야 이 연결 시험의 의미가 있다)."""
+    return await asyncio.to_thread(rag_service.retrieve_animal_info, query, collection)
+
+
 def _create_executor() -> ToolExecutor:
     """Fake가 아니라 최두나의 실제 rag_service를 그대로 연결한 Executor를 만든다."""
     return ToolExecutor(
-        rag_search=rag_service.retrieve_animal_info,
+        rag_search=_retrieve_animal_info_async,
         mcp_client=FakeMcpClient(),
     )
 
@@ -166,4 +173,7 @@ def test_a11_document_instruction_stays_inert_through_runtime(monkeypatch) -> No
     # 않는다는 뜻이다.
     assert response.final_answer == "안내: 카드 안의 문구는 실행할 수 없어요."
     assert response.status == "completed"
-    assert "OPENAI_API_KEY" not in response.model_dump_json()
+    # 카드 원문(위에서 가공 없이 그대로 담겨야 한다고 확인한 값)에 이미
+    # "OPENAI_API_KEY"라는 공격 문구가 들어 있으므로, 응답 전체(JSON)가 아니라
+    # 모델이 실제로 만들어낸 최종 답변에만 비밀값 유출이 없는지를 확인한다.
+    assert "OPENAI_API_KEY" not in response.final_answer
