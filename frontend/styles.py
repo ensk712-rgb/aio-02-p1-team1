@@ -48,6 +48,7 @@ def apply_theme() -> None:
     [data-testid="stPageLink"] a:hover { background:rgba(255,255,255,.13); }
     .zoo-route { background:linear-gradient(145deg,var(--moss-soft),var(--moss)); border-radius:14px; padding:22px; text-align:center; font-size:1.05rem; line-height:2.8; color:var(--ink); }
     .zoo-status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ok); margin-right:6px; }
+
     .zoo-photo-map { margin:1rem 0 0; border:1px solid var(--sand-2); border-radius:14px; overflow:hidden; background:var(--paper); box-shadow:0 20px 48px rgba(14,42,33,.16); }
     .zoo-photo-map__canvas { position:relative; aspect-ratio:3/2; overflow:hidden; background:var(--moss-soft); }
     .zoo-photo-map__canvas img { display:block; width:100%; height:100%; object-fit:cover; }

@@ -182,7 +182,9 @@ def test_reservation_confirmation_card_and_confirm(monkeypatch) -> None:
 
 
 def test_zoo_map_renders_open_habitat_route_by_default(monkeypatch) -> None:
+
     """기본 선택(정문 → 해양관)은 휴장이 아니므로 실제 경로가 표시된다."""
+
     monkeypatch.setenv("ZOO_UI_FAKE_MODE", "1")
     at = AppTest.from_file(str(APP_PATH), default_timeout=10)
     at.session_state["login_success"] = True
@@ -190,6 +192,7 @@ def test_zoo_map_renders_open_habitat_route_by_default(monkeypatch) -> None:
     at.session_state["auth_session_id"] = "auth_fake"
     at.run().switch_page("app_pages/zoo_map.py").run()
     assert not at.exception
+
     assert at.selectbox(key="map_route_start").value == "정문"
     assert at.selectbox(key="map_route_destination").value == "해양관"
     assert any("정문 → 해양관 · 도보 약 15분" in success.value for success in at.success)
@@ -202,7 +205,11 @@ def test_zoo_map_shows_closure_warning_for_closed_habitat(monkeypatch) -> None:
     at.session_state["user_id"] = "TEST"
     at.session_state["auth_session_id"] = "auth_fake"
     at.run().switch_page("app_pages/zoo_map.py").run()
+
     at.selectbox(key="map_route_destination").set_value("코끼리관").run()
+
+    at.radio[0].set_value("코끼리관").run()
+
     assert not at.exception
     assert any("휴장 중입니다" in warning.value for warning in at.warning)
     assert any("시설 점검" in warning.value for warning in at.warning)
