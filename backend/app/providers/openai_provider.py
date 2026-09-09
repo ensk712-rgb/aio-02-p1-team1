@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 from openai import AsyncOpenAI
 
-from backend.app.providers.base import ModelProvider, ProviderToolSchema
+from backend.app.providers.base import ProviderToolSchema
 from backend.app.schemas.agent import ModelToolCall, ModelTurn
 from backend.app.schemas.tools import ToolCallRecord
 

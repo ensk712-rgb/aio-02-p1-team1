@@ -7,7 +7,6 @@ from frontend.components.chat_panel import render_chat_panel
 from frontend.components.dashboard import current_time_label, render_animal_card, render_feeding_card, render_hero, render_route_card
 from frontend.components.layout import render_sidebar
 from frontend.components.reservation import render_reservation
-from frontend.clients.agent_client import AgentClientError
 
 client = get_client()
 render_sidebar("home")
