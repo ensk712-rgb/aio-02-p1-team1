@@ -24,17 +24,17 @@
 
 ## 1. 프로젝트 개요
 
-| 항목 | 내용 |
-|---|---|
-| 프로젝트명 | 동물원 관람 지원 AI 에이전트(Zoo Visit Guide AI Agent) |
-| Agent ID | `zoo_guide` (단일 Agent, Multi-Agent/Handoff 없음) |
-| 목적 | 관람객 질문을 판단해 공식 문서를 검색하거나(RAG) 동물원 운영 Tool을 호출하고, 근거가 포함된 관람 안내를 제공한다. |
-| 핵심 기능 (P0 = MVP) | 동물 정보 RAG, 먹이시간·휴장·경로 조회 Tool 3종 |
-| 확장 기능 (P1) | 티켓·날씨 조회, 맞춤 코스 안내, 예약 승인, 세션 Memory |
-| Backend / Frontend | FastAPI / Streamlit |
-| Tool 연결 | Streamable HTTP MCP Server (별도 프로세스) |
-| 저장소 (Day-1) | In-Memory. Redis/pgvector 전환은 P1 |
-| 개발 방법론 | MVP(P0) → Baseline 확보 → P1 추가 기능 분담 개발 |
+| 항목                 | 내용                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 프로젝트명           | 동물원 관람 지원 AI 에이전트(Zoo Visit Guide AI Agent)                                                            |
+| Agent ID             | `zoo_guide` (단일 Agent, Multi-Agent/Handoff 없음)                                                              |
+| 목적                 | 관람객 질문을 판단해 공식 문서를 검색하거나(RAG) 동물원 운영 Tool을 호출하고, 근거가 포함된 관람 안내를 제공한다. |
+| 핵심 기능 (P0 = MVP) | 동물 정보 RAG, 먹이시간·휴장·경로 조회 Tool 3종                                                                 |
+| 확장 기능 (P1)       | 티켓·날씨 조회, 맞춤 코스 안내, 예약 승인, 세션 Memory                                                           |
+| Backend / Frontend   | FastAPI / Streamlit                                                                                               |
+| Tool 연결            | Streamable HTTP MCP Server (별도 프로세스)                                                                        |
+| 저장소 (Day-1)       | In-Memory. Redis/pgvector 전환은 P1                                                                               |
+| 개발 방법론          | MVP(P0) → Baseline 확보 → P1 추가 기능 분담 개발                                                                |
 
 ### MVP(P0) 범위 — 이미 완료 대상, 아래 항목은 역할 분담에서 제외됨
 
@@ -62,22 +62,22 @@
 
 ### 2.1 P1 확장 대상 (여유 시, 역할 분담 대상)
 
-| 영역 | 내용 | 비고 |
-|---|---|---|
-| 조회 Tool 확장 | `lookup_ticket_scope`, `lookup_public_weather` | MCP `tools/public_data.py` |
-| 개인화 | 아이 동반, 관람 시간, 이동 조건을 질문에 반영 (N-05) | RAG + 복수 Tool 조합 |
-| 예약 | `reserve_experience_program` — 확인 후 실행, `session_id` 소유권 검증, TTL 120초, `pending→processing→completed` | Human Approval 흐름 (4.2절/12장) |
-| Memory | 같은 세션의 최근 대화·관람 조건 유지 (N-08) | In-Memory dict 우선, Redis는 그 다음 |
+| 영역           | 내용                                                                                                                      | 비고                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| 조회 Tool 확장 | `lookup_ticket_scope`, `lookup_public_weather`                                                                        | MCP`tools/public_data.py`          |
+| 개인화         | 아이 동반, 관람 시간, 이동 조건을 질문에 반영 (N-05)                                                                      | RAG + 복수 Tool 조합                 |
+| 예약           | `reserve_experience_program` — 확인 후 실행, `session_id` 소유권 검증, TTL 120초, `pending→processing→completed` | Human Approval 흐름 (4.2절/12장)     |
+| Memory         | 같은 세션의 최근 대화·관람 조건 유지 (N-08)                                                                              | In-Memory dict 우선, Redis는 그 다음 |
 
 ### 2.2 완전 제외 (Out-of-Scope, P1에도 원칙적으로 안 함)
 
-| 제외 항목 | 사유 |
-|---|---|
-| 실제 결제, 최종 법률 판단, 동물 질병 진단, 시설 폐쇄·대피 명령 | 위험/권한 밖 — Tool 자체를 만들지 않음 |
-| **SSE 실시간 스트리밍** | Day-1 제외, P1에서도 선택 사항. 동기 HTTP로 대체 |
-| **STT/TTS(음성), 이미지 기반 동물 인식** | 별도 Provider 연동 필요 — Day-1 제외, P1에서도 선택 사항 |
-| 로그인/회원 인증, 사용자·어드민 권한 분리 | v0.2까지의 요구사항이었으나 v0.3.1에서 범위 축소. 관람객은 게스트 세션만 사용. `/api/admin/trace` 접근 통제는 최소 수준(토큰 등)으로만 P1에서 고려 |
-| 실제 운영 예약 시스템, 장기 개인정보 저장, 다중 Agent 협업, 상용 배포 | 로컬 시연 범위 초과 |
+| 제외 항목                                                             | 사유                                                                                                                                                |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 실제 결제, 최종 법률 판단, 동물 질병 진단, 시설 폐쇄·대피 명령       | 위험/권한 밖 — Tool 자체를 만들지 않음                                                                                                             |
+| **SSE 실시간 스트리밍**                                         | Day-1 제외, P1에서도 선택 사항. 동기 HTTP로 대체                                                                                                    |
+| **STT/TTS(음성), 이미지 기반 동물 인식**                        | 별도 Provider 연동 필요 — Day-1 제외, P1에서도 선택 사항                                                                                           |
+| 로그인/회원 인증, 사용자·어드민 권한 분리                            | v0.2까지의 요구사항이었으나 v0.3.1에서 범위 축소. 관람객은 게스트 세션만 사용.`/api/admin/trace` 접근 통제는 최소 수준(토큰 등)으로만 P1에서 고려 |
+| 실제 운영 예약 시스템, 장기 개인정보 저장, 다중 Agent 협업, 상용 배포 | 로컬 시연 범위 초과                                                                                                                                 |
 
 ---
 
@@ -169,11 +169,11 @@ Router는 HTTP 계약만 갖고, Service가 실행 순서와 정책을 소유하
 
 ### 5.1 P0 API (MVP)
 
-| Method | Path | Request | Response | 인증 |
-|---|---|---|---|---|
-| GET | `/api/health` | — | `{status, mcp}` | 없음 |
-| POST | `/api/agent/ask` | `AgentAskRequest` | `AgentAskResponse` | 게스트 세션 허용 |
-| GET | `/api/admin/trace?session_id=` | — | 세션 Trace 목록 | 최소 수준(토큰 등, P1에서 강화 검토) |
+| Method | Path                             | Request             | Response             | 인증                                 |
+| ------ | -------------------------------- | ------------------- | -------------------- | ------------------------------------ |
+| GET    | `/api/health`                  | —                  | `{status, mcp}`    | 없음                                 |
+| POST   | `/api/agent/ask`               | `AgentAskRequest` | `AgentAskResponse` | 게스트 세션 허용                     |
+| GET    | `/api/admin/trace?session_id=` | —                  | 세션 Trace 목록      | 최소 수준(토큰 등, P1에서 강화 검토) |
 
 ```jsonc
 // AgentAskRequest
@@ -196,9 +196,9 @@ Router는 HTTP 계약만 갖고, Service가 실행 순서와 정책을 소유하
 
 ### 5.2 P1 확장 API
 
-| Method | Path | Request | Response | 인증/승인 |
-|---|---|---|---|---|
-| POST | `/api/agent/confirm` | `{session_id, action_id}` | `AgentAskResponse` | `session_id`가 Pending Action 저장 시점과 일치해야 함 |
+| Method | Path                   | Request                     | Response             | 인증/승인                                               |
+| ------ | ---------------------- | --------------------------- | -------------------- | ------------------------------------------------------- |
+| POST   | `/api/agent/confirm` | `{session_id, action_id}` | `AgentAskResponse` | `session_id`가 Pending Action 저장 시점과 일치해야 함 |
 
 > SSE(`/api/agent/stream`), `/api/media/stt`, `/api/media/tts`는 설계서 v0.3.1에서 Out-of-Scope로 확정되어 이 실행 계획에도 넣지 않습니다. 필요해지면 별도 스프린트로 다룹니다.
 
@@ -214,72 +214,72 @@ v1 계획에는 `/api/tools/*` 직접 호출 엔드포인트가 있었지만, �
 
 ### 6.1 `backend/app/agents/` — Profile 정의 + Runtime (P0)
 
-| 파일 | 함수/클래스 | 역할 |
-|---|---|---|
-| `models.py` | `AgentProfile` (frozen dataclass) | `agent_id, name, goal, description, example_questions, instructions, allowed_tools` |
-| `zoo_guide_agent.py` | `ZOO_GUIDE_PROFILE`, `ZOO_GUIDE_ALLOWED_TOOLS_P0` | Goal/Instructions/Allowed Tools 정의 (5.5절 참조) |
-| `registry.py` | `get_agent_profile(agent_id) -> AgentProfile` | Profile 조회 |
-| `runtime.py` | `run_agent(state: AgentState) -> AgentState` | LLM 호출·Tool Call 추출·재시도·`MAX_AGENT_STEPS` 가드 |
+| 파일                   | 함수/클래스                                           | 역할                                                                                  |
+| ---------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `models.py`          | `AgentProfile` (frozen dataclass)                   | `agent_id, name, goal, description, example_questions, instructions, allowed_tools` |
+| `zoo_guide_agent.py` | `ZOO_GUIDE_PROFILE`, `ZOO_GUIDE_ALLOWED_TOOLS_P0` | Goal/Instructions/Allowed Tools 정의 (5.5절 참조)                                     |
+| `registry.py`        | `get_agent_profile(agent_id) -> AgentProfile`       | Profile 조회                                                                          |
+| `runtime.py`         | `run_agent(state: AgentState) -> AgentState`        | LLM 호출·Tool Call 추출·재시도·`MAX_AGENT_STEPS` 가드                            |
 
 ### 6.2 `backend/app/services/` — 실행 순서와 정책 소유 (P0)
 
-| 파일 | 함수 | 역할 |
-|---|---|---|
-| `agent_orchestration_service.py` | `handle_ask(request) -> AgentAskResponse` | `/api/agent/ask` 단일 진입점 |
-| `rag_service.py` | `chunk_document(raw_text, doc_id)` / `embed_and_store(chunks)` / `retrieve_chunks(query, top_k=3)` / `answer_with_citations(question, chunks)` | RAG를 "준-Tool"로 취급(7.4절 계약), `RAG_MIN_SCORE` 미만이면 `data.matched=false` |
+| 파일                               | 함수                                                                                                                                                   | 역할                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `agent_orchestration_service.py` | `handle_ask(request) -> AgentAskResponse`                                                                                                            | `/api/agent/ask` 단일 진입점                                                       |
+| `rag_service.py`                 | `chunk_document(raw_text, doc_id)` / `embed_and_store(chunks)` / `retrieve_chunks(query, top_k=3)` / `answer_with_citations(question, chunks)` | RAG를 "준-Tool"로 취급(7.4절 계약),`RAG_MIN_SCORE` 미만이면 `data.matched=false` |
 
 ### 6.3 `backend/app/tools/` — 각 함수는 조회 또는 상태 변경 하나만
 
-| 파일 | 함수 | 위험도 | 우선순위 |
-|---|---|---|---|
-| `zoo_tools.py` | `get_feeding_schedule(habitat)` | read | **P0** |
-| `zoo_tools.py` | `check_closure_status(habitat=None)` | read | **P0** |
-| `zoo_tools.py` | `find_habitat_route(current, destination)` | read | **P0** |
-| `zoo_tools.py` | `lookup_ticket_scope(ticket_type)` | read | P1 |
-| `zoo_tools.py` | `lookup_public_weather(region)` | read | P1 |
-| `zoo_tools.py` | `reserve_experience_program(program, time, headcount)` | **change** | P1 |
-| `registry.py` | `get_tool_definitions() -> list[dict]` | — | P0 |
-| `executor.py` | `execute_tool_safely(name, arguments) -> ToolRunResult` | Allowlist + Pydantic 검증 | P0 |
+| 파일             | 함수                                                      | 위험도                    | 우선순위     |
+| ---------------- | --------------------------------------------------------- | ------------------------- | ------------ |
+| `zoo_tools.py` | `get_feeding_schedule(habitat)`                         | read                      | **P0** |
+| `zoo_tools.py` | `check_closure_status(habitat=None)`                    | read                      | **P0** |
+| `zoo_tools.py` | `find_habitat_route(current, destination)`              | read                      | **P0** |
+| `zoo_tools.py` | `lookup_ticket_scope(ticket_type)`                      | read                      | P1           |
+| `zoo_tools.py` | `lookup_public_weather(region)`                         | read                      | P1           |
+| `zoo_tools.py` | `reserve_experience_program(program, time, headcount)`  | **change**          | P1           |
+| `registry.py`  | `get_tool_definitions() -> list[dict]`                  | —                        | P0           |
+| `executor.py`  | `execute_tool_safely(name, arguments) -> ToolRunResult` | Allowlist + Pydantic 검증 | P0           |
 
 ### 6.4 `backend/app/repositories/` — 저장소 접근만, 업무 규칙 없음
 
-| 파일 | 함수 | 저장소 | 우선순위 |
-|---|---|---|---|
-| `document_repository.py` | `insert_chunks(chunks)` / `similarity_search(embedding, top_k)` | In-Memory(P0) → pgvector(P1) | P0 |
-| `session_memory_repository.py` | `get_recent(session_id)` / `append_message(session_id, message)` | In-Memory dict(P1) → Redis(P1 이후) | **P1** |
+| 파일                             | 함수                                                                                                           | 저장소                                | 우선순위     |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------ |
+| `document_repository.py`       | `insert_chunks(chunks)` / `similarity_search(embedding, top_k)`                                            | In-Memory(P0) → pgvector(P1)         | P0           |
+| `session_memory_repository.py` | `get_recent(session_id)` / `append_message(session_id, message)`                                           | In-Memory dict(P1) → Redis(P1 이후)  | **P1** |
 | `pending_action_repository.py` | `create(action) -> action_id` / `get(action_id)` / `mark_processing(action_id)` / `consume(action_id)` | In-Memory dict, TTL 120s(P1) → Redis | **P1** |
 
 ### 6.5 `backend/app/services/approval_service.py` — 승인 판정, 소유권 검증 (P1)
 
-| 함수 | 역할 |
-|---|---|
-| `create_pending_action(tool_name, arguments, session_id) -> PendingAction` | Pending Action 발급 |
-| `confirm_pending_action(action_id, session_id) -> ToolRunResult` | `session_id` 일치 + `pending` 상태 + TTL 검증 → `processing` → 실행 → `completed`. 불일치/만료/중복이면 `rejected` |
+| 함수                                                                         | 역할                                                                                                                            |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `create_pending_action(tool_name, arguments, session_id) -> PendingAction` | Pending Action 발급                                                                                                             |
+| `confirm_pending_action(action_id, session_id) -> ToolRunResult`           | `session_id` 일치 + `pending` 상태 + TTL 검증 → `processing` → 실행 → `completed`. 불일치/만료/중복이면 `rejected` |
 
 ### 6.6 `mcp_server/` — 독립 프로세스, 백엔드는 MCP Client로만 호출
 
-| 파일 | 함수 | 역할 | 우선순위 |
-|---|---|---|---|
-| `server.py` | `create_mcp_server() -> Server` | Tool 등록, Streamable HTTP 진입점 | P0 |
-| `tools/zoo_operations.py` | `get_feeding_schedule` 등 P0 Tool 3종 | Mock 데이터 연결 | P0 |
-| `tools/public_data.py` | `lookup_public_weather(region)` | 공공데이터포털/Mock 연동 | **P1** |
-| `tools/zoo_bridge.py` | `reserve_experience_program(...)` | 백엔드 예약 로직을 MCP Tool로 재노출 | **P1** |
+| 파일                        | 함수                                    | 역할                                 | 우선순위     |
+| --------------------------- | --------------------------------------- | ------------------------------------ | ------------ |
+| `server.py`               | `create_mcp_server() -> Server`       | Tool 등록, Streamable HTTP 진입점    | P0           |
+| `tools/zoo_operations.py` | `get_feeding_schedule` 등 P0 Tool 3종 | Mock 데이터 연결                     | P0           |
+| `tools/public_data.py`    | `lookup_public_weather(region)`       | 공공데이터포털/Mock 연동             | **P1** |
+| `tools/zoo_bridge.py`     | `reserve_experience_program(...)`     | 백엔드 예약 로직을 MCP Tool로 재노출 | **P1** |
 
 ### 6.7 `backend/app/mcp_client/client.py` (P0)
 
-| 함수 | 역할 |
-|---|---|
-| `discover_tools() -> list[ToolSchema]` | `tools/list` 호출 |
+| 함수                                            | 역할                                    |
+| ----------------------------------------------- | --------------------------------------- |
+| `discover_tools() -> list[ToolSchema]`        | `tools/list` 호출                     |
 | `call_tool(name, arguments) -> ToolRunResult` | `tools/call` 호출, timeout 1회 재시도 |
 
 ### 6.8 `frontend/` — 화면은 API 응답을 그대로 렌더링, 정책 판단 없음
 
-| 파일 | 함수 | 역할 | 우선순위 |
-|---|---|---|---|
-| `app.py` | — | Streamlit 관람객 채팅 화면(질문/출처/Tool 결과) | P0 |
-| `clients/agent_client.py` | `ask(message, session_id) -> AgentAskResponse` | `/api/agent/ask` 호출 | P0 |
-| `clients/agent_client.py` | `confirm(session_id, action_id) -> AgentAskResponse` | `/api/agent/confirm` 호출 | **P1** |
-| `app_pages/02_reservation_card.py` | 예약 확인 카드 UI (4.4절 R1~R12 화면 상태) | TTL 카운트다운, 스피너, 소유권 오류/만료/성공 상태 분리 표시 | **P1** |
+| 파일                                 | 함수                                                   | 역할                                                         | 우선순위     |
+| ------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------ | ------------ |
+| `app.py`                           | —                                                     | Streamlit 관람객 채팅 화면(질문/출처/Tool 결과)              | P0           |
+| `clients/agent_client.py`          | `ask(message, session_id) -> AgentAskResponse`       | `/api/agent/ask` 호출                                      | P0           |
+| `clients/agent_client.py`          | `confirm(session_id, action_id) -> AgentAskResponse` | `/api/agent/confirm` 호출                                  | **P1** |
+| `app_pages/02_reservation_card.py` | 예약 확인 카드 UI (4.4절 R1~R12 화면 상태)             | TTL 카운트다운, 스피너, 소유권 오류/만료/성공 상태 분리 표시 | **P1** |
 
 ---
 
@@ -344,18 +344,18 @@ ranger-agent/
 
 ### 8.1 In-Memory 저장 (P0)
 
-| 저장 대상 | 구현 |
-|---|---|
-| 동물 정보카드 임베딩 | In-Memory list/dict (P1에서 pgvector로 교체 가능하도록 `document_repository.py` 인터페이스로 분리) |
-| Trace | 응답 State에 포함, 별도 저장소 없음 |
+| 저장 대상            | 구현                                                                                                |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| 동물 정보카드 임베딩 | In-Memory list/dict (P1에서 pgvector로 교체 가능하도록`document_repository.py` 인터페이스로 분리) |
+| Trace                | 응답 State에 포함, 별도 저장소 없음                                                                 |
 
 ### 8.2 P1 확장 저장
 
-| 저장 대상 | Day-1 | P1 |
-|---|---|---|
-| 세션 대화(`session:{session_id}`) | 없음 | In-Memory dict → Redis |
-| Pending Action(`pending_action:{action_id}`) | 없음 | In-Memory dict, TTL 120초(애플리케이션 레벨 만료 비교) → Redis |
-| `idempotency_key` | 없음 | `session_id + ":" + action_id` 집합으로 중복 실행 방지 |
+| 저장 대상                                      | Day-1 | P1                                                              |
+| ---------------------------------------------- | ----- | --------------------------------------------------------------- |
+| 세션 대화(`session:{session_id}`)            | 없음  | In-Memory dict → Redis                                         |
+| Pending Action(`pending_action:{action_id}`) | 없음  | In-Memory dict, TTL 120초(애플리케이션 레벨 만료 비교) → Redis |
+| `idempotency_key`                            | 없음  | `session_id + ":" + action_id` 집합으로 중복 실행 방지        |
 
 ### 8.3 AgentState 핵심 필드 (`backend/app/schemas/agent.py`)
 
@@ -373,18 +373,18 @@ ranger-agent/
 
 ## 9. 빌드 순서 (Phase)
 
-| Phase | 목표 | 작업 내용 | 검증 | 우선순위 |
-|---|---|---|---|---|
-| 1 | 기준선 확보 | Backend/MCP 기동, API Schema 정리, In-Memory 저장소 뼈대, `config.py`에 임계값 정리 | `/api/health` 확인 | **P0** |
-| 2 | Agent Profile·판단 흐름 | `zoo_guide` Profile, RAG + 조회 Tool 3종 연결 | N-01~N-04, A-01~A-05 실행 | **P0** |
-| 3 | 안전장치 검증 | Allowlist 차단, 반복 한도(A-13), timeout(A-03), 금지 영역(A-09~A-12) | A-09~A-14 실행 | **P0** |
-| 4 | Streamlit 통합 | 질문·출처·Tool 정보 표시 | 브라우저에서 P0 흐름 시연 | **P0** |
-| 마감(P0) | 통합 테스트·문서화 | 실패 Case 수정, 실행 명령·제한사항 기록 | P0 체크리스트 완료 후 데모 재실행 | **P0** |
-| 5 | 예약 승인 흐름 | `approval_service`, `pending_action_repository`, `reserve_experience_program`, `/api/agent/confirm`, 소유권 검증(4.2절) | N-06, N-07, A-06~A-08b 실행 | P1 |
-| 6 | 조회 Tool 확장 | `lookup_ticket_scope`, `lookup_public_weather`, `mcp_server/tools/public_data.py` | 티켓/날씨 질문 정상 응답 | P1 |
-| 7 | 개인화 · Memory | `session_memory_repository`, N-05(코스 추천), N-08(후속 질문) | N-05, N-08 실행 | P1 |
-| 8 | 예약 카드 프론트 | `02_reservation_card.py` (TTL 카운트다운, 스피너, 오류 상태 분리) | 4.4절 화면 상태 전체 재현 | P1 |
-| 9 | P1 회귀 테스트 취합 | 각자 담당 시나리오 통합 | N-05~N-08, A-06~A-08b 전체 통과 | P1 |
+| Phase    | 목표                     | 작업 내용                                                                                                                       | 검증                              | 우선순위     |
+| -------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------ |
+| 1        | 기준선 확보              | Backend/MCP 기동, API Schema 정리, In-Memory 저장소 뼈대,`config.py`에 임계값 정리                                            | `/api/health` 확인              | **P0** |
+| 2        | Agent Profile·판단 흐름 | `zoo_guide` Profile, RAG + 조회 Tool 3종 연결                                                                                 | N-01~N-04, A-01~A-05 실행        | **P0** |
+| 3        | 안전장치 검증            | Allowlist 차단, 반복 한도(A-13), timeout(A-03), 금지 영역(A-09~A-12)                                                            | A-09~A-14 실행                    | **P0** |
+| 4        | Streamlit 통합           | 질문·출처·Tool 정보 표시                                                                                                      | 브라우저에서 P0 흐름 시연         | **P0** |
+| 마감(P0) | 통합 테스트·문서화      | 실패 Case 수정, 실행 명령·제한사항 기록                                                                                        | P0 체크리스트 완료 후 데모 재실행 | **P0** |
+| 5        | 예약 승인 흐름           | `approval_service`, `pending_action_repository`, `reserve_experience_program`, `/api/agent/confirm`, 소유권 검증(4.2절) | N-06, N-07, A-06~A-08b 실행       | P1           |
+| 6        | 조회 Tool 확장           | `lookup_ticket_scope`, `lookup_public_weather`, `mcp_server/tools/public_data.py`                                         | 티켓/날씨 질문 정상 응답          | P1           |
+| 7        | 개인화 · Memory         | `session_memory_repository`, N-05(코스 추천), N-08(후속 질문)                                                                 | N-05, N-08 실행                   | P1           |
+| 8        | 예약 카드 프론트         | `02_reservation_card.py` (TTL 카운트다운, 스피너, 오류 상태 분리)                                                             | 4.4절 화면 상태 전체 재현         | P1           |
+| 9        | P1 회귀 테스트 취합      | 각자 담당 시나리오 통합                                                                                                         | N-05~N-08, A-06~A-08b 전체 통과  | P1           |
 
 Phase 1~4 + 마감(P0)은 이미 완료해야 할 MVP 범위이므로 아래 10장 역할 분담에는 **Phase 5~9만** 배분합니다.
 
@@ -400,37 +400,37 @@ Phase 1~4 + 마감(P0)은 이미 완료해야 할 MVP 범위이므로 아래 10�
 
 > 본인 희망 영역(에이전트·Tool)의 연장선으로, 상태를 변경하는 유일한 Tool과 그 승인 절차를 책임집니다.
 
-| 구분 | 내용 |
-|---|---|
-| 포함 Phase | 5 |
+| 구분          | 내용                                                                                                                                                                                                             |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 포함 Phase    | 5                                                                                                                                                                                                                |
 | 소유 디렉토리 | `backend/app/services/approval_service.py`, `backend/app/repositories/pending_action_repository.py`, `backend/app/tools/zoo_tools.py`의 `reserve_experience_program`, `mcp_server/tools/zoo_bridge.py` |
-| 주요 함수 | `create_pending_action()` · `confirm_pending_action()` · `reserve_experience_program()` |
-| 담당 API | `POST /api/agent/confirm` |
-| 검증 대상 | N-06, N-07, A-06, A-07, A-08, A-08b (세션 불일치 즉시 `rejected`, TTL 120초, `processing` 상태로 동시 확인 차단) |
-| 받는 입력 | Phase 1~4에서 만들어진 `AgentState.approval` 필드, `agent_orchestration_service.handle_ask()`의 Tool 제안 결과 |
-| 넘기는 출력 | `AgentAskResponse.pending_action`, 최두나의 평가 시나리오(T-N06, T-N07, T-A06~T-A08b)가 그대로 통과해야 함 |
+| 주요 함수     | `create_pending_action()` · `confirm_pending_action()` · `reserve_experience_program()`                                                                                                                  |
+| 담당 API      | `POST /api/agent/confirm`                                                                                                                                                                                      |
+| 검증 대상     | N-06, N-07, A-06, A-07, A-08, A-08b (세션 불일치 즉시`rejected`, TTL 120초, `processing` 상태로 동시 확인 차단)                                                                                              |
+| 받는 입력     | Phase 1~4에서 만들어진`AgentState.approval` 필드, `agent_orchestration_service.handle_ask()`의 Tool 제안 결과                                                                                                |
+| 넘기는 출력   | `AgentAskResponse.pending_action`, 최두나의 평가 시나리오(T-N06, T-N07, T-A06~T-A08b)가 그대로 통과해야 함                                                                                                     |
 
 ### 최두나 — 조회 Tool 확장 · 개인화 · 세션 Memory (Phase 6, 7)
 
-| 구분 | 내용 |
-|---|---|
-| 포함 Phase | 6, 7 |
+| 구분          | 내용                                                                                                                                                                                   |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 포함 Phase    | 6, 7                                                                                                                                                                                   |
 | 소유 디렉토리 | `backend/app/tools/zoo_tools.py`의 `lookup_ticket_scope`/`lookup_public_weather`, `mcp_server/tools/public_data.py`, `backend/app/repositories/session_memory_repository.py` |
-| 주요 함수 | `lookup_ticket_scope()` · `lookup_public_weather()` · `get_recent()` / `append_message()` |
-| 담당 시나리오 | N-05(개인화 코스 추천, RAG+복수 Tool 조합), N-08(세션 Memory 기반 후속 질문) |
-| 넘기는 출력 | 손영민의 `approval_service`가 조회하는 티켓/정원 관련 정보(필요 시), 프론트 대화 맥락 유지에 쓰이는 `session_memory_repository` |
-| 비고 | Redis 전환이 필요해지면(8.2절) 이 사람이 Repository 인터페이스는 그대로 두고 구현체만 교체 |
+| 주요 함수     | `lookup_ticket_scope()` · `lookup_public_weather()` · `get_recent()` / `append_message()`                                                                                    |
+| 담당 시나리오 | N-05(개인화 코스 추천, RAG+복수 Tool 조합), N-08(세션 Memory 기반 후속 질문)                                                                                                           |
+| 넘기는 출력   | 손영민의`approval_service`가 조회하는 티켓/정원 관련 정보(필요 시), 프론트 대화 맥락 유지에 쓰이는 `session_memory_repository`                                                     |
+| 비고          | Redis 전환이 필요해지면(8.2절) 이 사람이 Repository 인터페이스는 그대로 두고 구현체만 교체                                                                                             |
 
 ### 이원민 — 예약 카드 UI · P1 회귀 테스트 취합 (Phase 8, 9)
 
-| 구분 | 내용 |
-|---|---|
-| 포함 Phase | 8, 9(취합) |
-| 소유 디렉토리 | `frontend/app_pages/02_reservation_card.py`, `frontend/clients/agent_client.py`의 `confirm()`, `docs/eval-scenarios.md` |
-| 주요 함수 | `confirm(session_id, action_id)` · 4.4절 R1~R12 화면 상태 구현(TTL 카운트다운, 처리 중 스피너, 소유권 오류/만료/일시 오류를 서로 다른 안내로 분리) |
-| 담당 API | `POST /api/agent/confirm` 호출 측(프론트) |
-| 받는 입력 | 손영민의 `AgentAskResponse.pending_action` 계약을 그대로 화면에 렌더링(정책 판단 없이 표시만) |
-| 취합 작업 | 3명이 각자 작성한 P1 시나리오(N-05~N-08, A-06~A-08b)를 `docs/eval-scenarios.md`에 통합하고 Phase 9 회귀 테스트를 돌린다 |
+| 구분          | 내용                                                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 포함 Phase    | 8, 9(취합)                                                                                                                                            |
+| 소유 디렉토리 | `frontend/app_pages/02_reservation_card.py`, `frontend/clients/agent_client.py`의 `confirm()`, `docs/eval-scenarios.md`                       |
+| 주요 함수     | `confirm(session_id, action_id)` · 4.4절 R1~R12 화면 상태 구현(TTL 카운트다운, 처리 중 스피너, 소유권 오류/만료/일시 오류를 서로 다른 안내로 분리) |
+| 담당 API      | `POST /api/agent/confirm` 호출 측(프론트)                                                                                                           |
+| 받는 입력     | 손영민의`AgentAskResponse.pending_action` 계약을 그대로 화면에 렌더링(정책 판단 없이 표시만)                                                        |
+| 취합 작업     | 3명이 각자 작성한 P1 시나리오(N-05~N-08, A-06~A-08b)를 `docs/eval-scenarios.md`에 통합하고 Phase 9 회귀 테스트를 돌린다                            |
 
 ---
 
