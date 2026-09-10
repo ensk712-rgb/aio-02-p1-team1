@@ -6,6 +6,7 @@ import streamlit as st
 
 from frontend.bootstrap import AgentClientProtocol
 from frontend.clients.agent_client import AgentClientError
+from frontend.components.reservation import render_approval_notice, render_pending_reservation_action
 from frontend.ui import render_agent_response
 
 
@@ -42,6 +43,9 @@ def _run_pending_question(client: AgentClientProtocol) -> None:
             session_id = response.get("session_id")
             if isinstance(session_id, str) and session_id:
                 st.session_state.session_id = session_id
+            pending_action = response.get("pending_action")
+            if isinstance(pending_action, dict):
+                st.session_state.pending_reservation_action = pending_action
             st.session_state.messages.append({"role": "assistant", "response": response})
             st.session_state.chat_status = "ready"
             status.update(label="안내 정보를 확인했습니다.", state="complete")
@@ -73,6 +77,7 @@ def render_chat_panel(client: AgentClientProtocol) -> None:
                 st.badge("대화 가능", color="green", icon=":material/check_circle:")
 
         _run_pending_question(client)
+        render_approval_notice()
 
         with st.container(height=350, border=False, key="chat_history"):
             if not st.session_state.messages:
@@ -83,6 +88,19 @@ def render_chat_panel(client: AgentClientProtocol) -> None:
                 avatar = ":material/eco:" if message["role"] == "assistant" else ":material/person:"
                 with st.chat_message(message["role"], avatar=avatar):
                     if message["role"] == "assistant":
-                        render_agent_response(message["response"], key_prefix=f"chat_{index}")
+                        response = message["response"]
+                        render_agent_response(response, key_prefix=f"chat_{index}")
+                        pending_action = response.get("pending_action")
+                        active_action = st.session_state.get("pending_reservation_action")
+                        if (
+                            isinstance(pending_action, dict)
+                            and isinstance(active_action, dict)
+                            and pending_action.get("action_id") == active_action.get("action_id")
+                        ):
+                            render_pending_reservation_action(
+                                client,
+                                active_action,
+                                key_prefix=f"chat_{index}",
+                            )
                     else:
                         st.markdown(message["content"])

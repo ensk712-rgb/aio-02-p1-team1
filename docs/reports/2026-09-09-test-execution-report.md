@@ -18,12 +18,12 @@
 
 ## 결과 요약
 
-| 구분 | 개수 | 비고 |
-|---|---:|---|
-| ✅ Pass | **281** | 실제 버그 4건(지도 경로 5건 + MCP 세션 재사용 1건 + RAG 연결 시험 테스트 자체 버그 2건) 수정 후 전부 통과 (272→281) |
-| ❌ Fail | **0** | 남은 실패 없음 |
-| ⛔ 미검증 (환경 제약) | **26** | 로컬에 없는 Postgres/Redis에 연결 시도하다가 응답 없이 대기(수 분~무기한). 아래 "미검증 항목" 참조 |
-| **합계** | **307** | |
+| 구분                  |          개수 | 비고                                                                                                                 |
+| --------------------- | ------------: | -------------------------------------------------------------------------------------------------------------------- |
+| ✅ Pass               | **281** | 실제 버그 4건(지도 경로 5건 + MCP 세션 재사용 1건 + RAG 연결 시험 테스트 자체 버그 2건) 수정 후 전부 통과 (272→281) |
+| ❌ Fail               |   **0** | 남은 실패 없음                                                                                                       |
+| ⛔ 미검증 (환경 제약) |  **26** | 로컬에 없는 Postgres/Redis에 연결 시도하다가 응답 없이 대기(수 분~무기한). 아래 "미검증 항목" 참조                   |
+| **합계**        | **307** |                                                                                                                      |
 
 ## 사전 준비 — 의존성 설치
 
@@ -45,6 +45,7 @@ MAP_IMAGE_PATH = Path(__file__).resolve().parents[2] / "docs" / "design" / "동�
 실제 저장소에 있는 파일명은 `동물원_관람_지원_Zoo_Visit_Guide 동물원 지도 디자인 시안.png`로, 이름이 다릅니다. `render_route_map()`을 호출하는 화면은 모두 `FileNotFoundError`로 깨졌습니다.
 
 영향받았던 테스트:
+
 - `tests/ui_mcp/test_frontend_app.py::test_zoo_map_renders_open_habitat_route_by_default`
 - `tests/ui_mcp/test_frontend_app.py::test_zoo_map_shows_closure_warning_for_closed_habitat`
 - `tests/ui_mcp/test_frontend_app.py::test_route_recommendation_renders_form_without_calling_backend`
@@ -62,6 +63,7 @@ MAP_IMAGE_PATH = Path(__file__).resolve().parents[2] / "docs" / "design" / "동�
 **원인**: [backend/app/mcp_client/client.py](../../backend/app/mcp_client/client.py)의 `call_tool()`/`list_tools()`가 **호출마다 새 세션을 열고 닫았습니다**. `mcp` SDK(1.27.0~1.30.0 전체, requirements.txt가 허용하는 범위 전체에서 재현됨)는 `call_tool()`이 처음 보는 Tool 이름이면 내부적으로 `list_tools()`를 자동으로 다시 호출해 출력 스키마를 재검증하는데, 세션을 매번 새로 여닫는 것과 겹치면서 응답이 오지 않고 멈추는 경우가 있었습니다 (재현 스크립트로 확인: 5번째 호출까지는 0.3초 안에 성공, 6번째에서만 응답 없이 멈춤 — 간헐적).
 
 `mcp` 버전을 낮춰서 피할 수 있는지 먼저 확인했으나:
+
 - 허용 범위 최하단인 `1.27.0`에서도 동일하게 재현됨
 - 그 기능이 없던 `1.9.0`까지 내리면 이번엔 우리 코드가 쓰는 `streamable_http_client` 심볼이 없어 **import 자체가 깨짐**
 
@@ -99,25 +101,26 @@ MAP_IMAGE_PATH = Path(__file__).resolve().parents[2] / "docs" / "design" / "동�
 2. **사용자가 직접 `.env`를 만들어 사내망 서버(`192.100.200.239` 등)를 가리키도록 설정** — Postgres(5432)·Redis(6380)·MCP(8100)·Backend(8000) 4개 엔드포인트 모두 5초 TCP 연결 시도에서 타임아웃되어, 이 머신에서는 그 사내망 자체에 접근할 수 없음을 확인했습니다(VPN 등이 필요한 것으로 보임).
 
 → 사용자 판단으로 **이번 세션에서는 여기까지 진행하고 보류**했습니다. 아래 두 경로 중 하나가 준비되면 나머지 26건도 마저 검증할 수 있습니다.
+
 - 사내망 VPN을 연결한 뒤 위 4개 엔드포인트 재접속 확인 → `.env`(이미 사내망 값으로 작성돼 있음) 그대로 재실행, 또는
 - 이 머신에 WSL2를 설치(`wsl --install`, 관리자 권한+재부팅) → `docker compose -f infra/docker-compose.yml up -d` → `.env`의 `DATABASE_URL`/`REDIS_URL`을 `127.0.0.1` 버전으로 바꿔 재실행
 
 전체를 완주시키려면 세션 하나로는 비현실적인 시간이 걸려, **이번 실행에서는 완주를 포기하고 원인만 특정**했습니다.
 
-| 파일 | 테스트 수 | 필요 인프라 |
-|---|---:|---|
-| `tests/data/test_db.py` | 1 | Postgres(+pgvector) |
-| `tests/data/test_document_repository_pgvector.py` | 1 | Postgres(+pgvector) |
-| `tests/data/test_reservation_repository_postgres.py` | 3 | Postgres |
-| `tests/data/test_pending_action_repository_postgres.py` | 6 | Postgres |
-| `tests/data/test_reservation_db.py` | 1 | Postgres |
-| `tests/data/test_redis_client.py` | 1 | Redis |
-| `tests/data/test_session_and_trace_repository_redis.py` | 1 | Redis |
-| `tests/data/test_session_memory_repository.py` | 3 | Redis |
-| `tests/data/test_seed_animal_cards.py` | 4 | Postgres(+pgvector) |
-| `tests/ui_mcp/test_main_integration_persistent.py` | 1 | Postgres/Redis |
-| `tests/ui_mcp/test_main_reservation_persistent.py` | 2 | Postgres/Redis |
-| `tests/ui_mcp/test_reservation_persistent_e2e.py` | 2 | Postgres/Redis |
+| 파일                                                      | 테스트 수 | 필요 인프라         |
+| --------------------------------------------------------- | --------: | ------------------- |
+| `tests/data/test_db.py`                                 |         1 | Postgres(+pgvector) |
+| `tests/data/test_document_repository_pgvector.py`       |         1 | Postgres(+pgvector) |
+| `tests/data/test_reservation_repository_postgres.py`    |         3 | Postgres            |
+| `tests/data/test_pending_action_repository_postgres.py` |         6 | Postgres            |
+| `tests/data/test_reservation_db.py`                     |         1 | Postgres            |
+| `tests/data/test_redis_client.py`                       |         1 | Redis               |
+| `tests/data/test_session_and_trace_repository_redis.py` |         1 | Redis               |
+| `tests/data/test_session_memory_repository.py`          |         3 | Redis               |
+| `tests/data/test_seed_animal_cards.py`                  |         4 | Postgres(+pgvector) |
+| `tests/ui_mcp/test_main_integration_persistent.py`      |         1 | Postgres/Redis      |
+| `tests/ui_mcp/test_main_reservation_persistent.py`      |         2 | Postgres/Redis      |
+| `tests/ui_mcp/test_reservation_persistent_e2e.py`       |         2 | Postgres/Redis      |
 
 **추가 팁**: `pytest-timeout`을 도입하더라도 Windows에서는 `--timeout-method=thread`가 멈춘 스레드를 강제 종료하지 못하고 프로세스 전체를 `os._exit()`으로 죽여버리는 것을 확인했으니, 개별 테스트에 `pytest.mark.timeout`을 걸기보다는 **연결 함수 자체에 connect timeout을 짧게 설정**하는 편이 근본적인 해결책입니다.
 
@@ -129,8 +132,8 @@ MAP_IMAGE_PATH = Path(__file__).resolve().parents[2] / "docs" / "design" / "동�
 
 ## 커밋 내역
 
-| 커밋 | 내용 |
-|---|---|
+| 커밋        | 내용                                                                                                                                                                                      |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `2f5e21c` | `fix: 지도 이미지 경로, MCP 클라이언트 세션 재사용, RAG 연결 시험 버그 수정` — 아래 3개 코드 변경 + 이 보고서, `test` 브랜치에 로컬 커밋 완료 (원격 `origin/test`에는 아직 미push) |
 
 커밋에 포함된 파일: [backend/app/mcp_client/client.py](../../backend/app/mcp_client/client.py), [frontend/components/route_map.py](../../frontend/components/route_map.py), [tests/integration/rag_agent/test_rag_agent_integration.py](../../tests/integration/rag_agent/test_rag_agent_integration.py), 이 보고서 파일. `.env`는 `.gitignore`에 포함되어 있어 커밋 대상에서 제외됨(의도된 동작).
@@ -145,4 +148,5 @@ MAP_IMAGE_PATH = Path(__file__).resolve().parents[2] / "docs" / "design" / "동�
 6. **[선택]** 커밋 `2f5e21c`를 원격(`origin/test`)에 push할지 결정 — 아직 push 안 됨
 
 ---
+
 *생성: Claude Code · 2026-09-09*
