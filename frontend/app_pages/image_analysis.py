@@ -3,7 +3,7 @@
 from io import BytesIO
 
 import streamlit as st
-from PIL import Image, ImageStat, UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError
 
 from frontend.bootstrap import get_client
 from frontend.clients.agent_client import AgentClientError
@@ -26,24 +26,6 @@ else:
         with preview:
             st.image(image, caption=uploaded.name, width="stretch")
         with result:
-            st.subheader("분석 결과")
-            sample = image.copy()
-            sample.thumbnail((256, 256))
-            stats = ImageStat.Stat(sample)
-            rgb = tuple(round(value) for value in stats.mean[:3])
-            brightness = round(sum(rgb) / 3)
-            tone = "밝음" if brightness >= 180 else "보통" if brightness >= 90 else "어두움"
-            focus_hint = "세로형" if image.height > image.width else "가로형" if image.width > image.height else "정사각형"
-            st.metric("해상도", f"{image.width:,} × {image.height:,}")
-            st.write(f"**이미지 방향** · {focus_hint}")
-            st.write(f"**전체 밝기** · {tone} ({brightness}/255)")
-            st.write(f"**평균 대표색** · RGB {rgb}")
-            st.color_picker("대표색 미리보기", f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}", disabled=True)
-            if brightness < 70:
-                st.warning("사진이 어두워 대상 식별이 어려울 수 있습니다. 밝은 곳에서 다시 촬영해 보세요.")
-            else:
-                st.success("기본 이미지 판독을 완료했습니다.")
-
             st.divider()
             st.subheader("AI 동물 종 분석")
             if st.button("AI로 동물 종 분석하기", icon=":material/smart_toy:", key="analyze_species"):

@@ -111,10 +111,12 @@ def render_tool_calls(tool_calls: Any, *, key_prefix: str = "response") -> None:
                 displayed = _display_data(data)
                 if displayed:
                     st.table(displayed, border="horizontal")
+
                 pending_action = data.get("pending_action")
                 if isinstance(pending_action, dict):
                     st.markdown("**진행현황**")
                     st.table(_pending_action_rows(pending_action), border="horizontal")
+
                 chunks = data.get("chunks")
                 if isinstance(chunks, list) and chunks:
                     safe_chunks = [_display_data(chunk) for chunk in chunks if isinstance(chunk, dict)]
@@ -157,6 +159,7 @@ def _display_data(data: dict[str, Any]) -> dict[str, Any]:
         "score": "관련도",
         "collection": "자료 분류",
         "query": "검색어",
+
         "pending_action": "진행현황",
     }
     displayed: dict[str, str] = {}
