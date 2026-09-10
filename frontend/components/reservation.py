@@ -38,7 +38,7 @@ def _set_notice(message: object, *, level: str) -> None:
     }
 
 
-def _render_notice() -> None:
+def render_approval_notice() -> None:
     notice = st.session_state.get("approval_notice")
     if not notice:
         return
@@ -57,6 +57,58 @@ def _render_notice() -> None:
     st.session_state.approval_notice = None
 
 
+def _progress_value(remaining: int) -> float:
+    """Streamlit progress가 허용하는 0~1 범위로 값을 제한한다."""
+    return min(1.0, max(0.0, remaining / 120))
+
+
+def render_pending_reservation_action(
+    client: AgentClientProtocol,
+    action: dict[str, object],
+    *,
+    key_prefix: str = "reservation",
+) -> None:
+    """챗봇과 예약 탭에서 같은 예약 확인·취소 UI를 사용한다."""
+    action_id = str(action.get("action_id", ""))
+    if not action_id:
+        st.warning("예약 요청 식별자를 확인할 수 없습니다.")
+        return
+    remaining = _remaining_seconds(action.get("expires_at"))
+    locally_expired = remaining == 0
+    with st.container(border=True, key=f"{key_prefix}_approval_card_{action_id}"):
+        st.subheader("예약 내용을 확인해 주세요", icon=":material/verified_user:")
+        st.write(str(action.get("summary", "예약 요청")))
+        if remaining is None:
+            st.warning("남은 시간을 계산할 수 없습니다. 서버 판정을 확인해 주세요.")
+        elif locally_expired:
+            st.warning("화면 기준 확인 시간이 지났습니다. 서버에서 최종 만료 여부를 확인합니다.", icon=":material/timer_off:")
+        else:
+            st.progress(_progress_value(remaining), text=f"확인 가능 시간 · {remaining}초 남음")
+        st.caption(f"서버 만료 시각 · {_expiry_label(action.get('expires_at'))}")
+        st.caption("확인 전에는 예약이 생성되거나 관리자에게 전달되지 않습니다.")
+        with st.container(horizontal=True):
+            locked = st.session_state.approval_processing or locally_expired
+            button_prefix = "" if key_prefix == "reservation" else f"{key_prefix}_"
+            confirm = st.button("확인", type="primary", icon=":material/check:", disabled=locked, key=f"{button_prefix}confirm_{action_id}")
+            cancel = st.button("취소", icon=":material/close:", disabled=locked, key=f"{button_prefix}cancel_{action_id}")
+        if confirm or cancel:
+            st.session_state.approval_processing = True
+            try:
+                result = client.confirm_reservation(
+                    st.session_state.auth_session_id,
+                    action_id,
+                    "confirm" if confirm else "cancel",
+                )
+                st.session_state.pending_reservation_action = None
+                _set_notice(result.get("message"), level="success" if confirm else "info")
+            except AgentClientError as error:
+                st.session_state.pending_reservation_action = None
+                _set_notice(error, level="error")
+            finally:
+                st.session_state.approval_processing = False
+            st.rerun()
+
+
 def render_reservation(client: AgentClientProtocol, *, expanded: bool = False) -> None:
     with st.expander("체험 예약 요청", icon=":material/event:", expanded=expanded):
         with st.form("reservation_request"):
@@ -72,43 +124,11 @@ def render_reservation(client: AgentClientProtocol, *, expanded: bool = False) -
             except AgentClientError as error:
                 _set_notice(error, level="error")
 
-        _render_notice()
+        render_approval_notice()
 
         action = st.session_state.get("pending_reservation_action")
         if isinstance(action, dict):
-            action_id = str(action.get("action_id", ""))
-            remaining = _remaining_seconds(action.get("expires_at"))
-            locally_expired = remaining == 0
-            with st.container(border=True, key=f"approval_card_{action_id}"):
-                st.subheader("예약 내용을 확인해 주세요", icon=":material/verified_user:")
-                st.write(str(action.get("summary", "예약 요청")))
-                if remaining is None:
-                    st.warning("남은 시간을 계산할 수 없습니다. 서버 판정을 확인해 주세요.")
-                elif locally_expired:
-                    st.warning("화면 기준 확인 시간이 지났습니다. 서버에서 최종 만료 여부를 확인합니다.", icon=":material/timer_off:")
-                else:
-                    st.progress(remaining / 120, text=f"확인 가능 시간 · {remaining}초 남음")
-                st.caption(f"서버 만료 시각 · {_expiry_label(action.get('expires_at'))}")
-                st.caption("확인 전에는 예약이 생성되거나 관리자에게 전달되지 않습니다.")
-                with st.container(horizontal=True):
-                    locked = st.session_state.approval_processing or locally_expired
-                    confirm = st.button("확인", type="primary", icon=":material/check:", disabled=locked, key=f"confirm_{action_id}")
-                    cancel = st.button("취소", icon=":material/close:", disabled=locked, key=f"cancel_{action_id}")
-                if confirm or cancel:
-                    st.session_state.approval_processing = True
-                    try:
-                        result = client.confirm_reservation(st.session_state.auth_session_id, action_id, "confirm" if confirm else "cancel")
-                        st.session_state.pending_reservation_action = None
-                        _set_notice(
-                            result.get("message"),
-                            level="success" if confirm else "info",
-                        )
-                    except AgentClientError as error:
-                        st.session_state.pending_reservation_action = None
-                        _set_notice(error, level="error")
-                    finally:
-                        st.session_state.approval_processing = False
-                    st.rerun()
+            render_pending_reservation_action(client, action)
 
         try:
             items = client.get_my_reservations(st.session_state.auth_session_id).get("items", [])

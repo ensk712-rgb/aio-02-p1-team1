@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -176,6 +177,55 @@ def test_reservation_confirmation_card_and_confirm(monkeypatch) -> None:
     assert any("서버 만료 시각" in caption.value for caption in at.caption)
     assert any("확인 전에는 예약이 생성" in caption.value for caption in at.caption)
     at.button(key=f"confirm_{action['action_id']}").click().run()
+    assert not at.exception
+    assert at.session_state["pending_reservation_action"] is None
+    assert any("관리자에게 전달" in success.value for success in at.success)
+
+
+def test_chat_reservation_confirmation_is_actionable_and_localized(monkeypatch) -> None:
+    from frontend.clients.fake_agent_client import FakeAgentClient
+
+    def reservation_answer(self, message, session_id=None, *, auth_session_id=None):
+        result = self.create_reservation(
+            auth_session_id,
+            program="사육사 체험",
+            visit_time="2026-09-11T15:00:00+09:00",
+            headcount=2,
+        )
+        action = result["pending_action"]
+        # 서버·브라우저 시각의 미세한 차이로 120초를 잠시 넘는 상황도 재현한다.
+        action["expires_at"] = (datetime.now(timezone.utc) + timedelta(seconds=121)).isoformat()
+        self._pending_action["expires_at"] = action["expires_at"]
+        return {
+            "session_id": session_id or "session_fake_reservation",
+            "status": "confirmation_required",
+            "final_answer": "예약 내용을 확인한 뒤 확인 또는 취소를 선택해 주세요.",
+            "sources": [],
+            "tool_calls": [{
+                "name": "reserve_experience_program",
+                "result": {
+                    "success": True,
+                    "data": {"pending_action": action},
+                    "source": "backend_approval",
+                    "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                },
+            }],
+            "pending_action": action,
+        }
+
+    monkeypatch.setattr(FakeAgentClient, "ask", reservation_answer)
+    at = _run_with_question(monkeypatch, "9월 11일 오후 3시 사육사 체험 2명 예약")
+
+    assert not at.exception
+    assert not any("예약 내용을 확인" in error.value for error in at.error)
+    assert any("확인 대기" in item.value for item in at.markdown)
+    tables = [table.value for table in at.table]
+    assert any("항목" in table.columns and "진행 상태" in table["항목"].values for table in tables)
+    assert any("KST" in str(table.to_dict()) for table in tables)
+    action_id = at.session_state["pending_reservation_action"]["action_id"]
+    assert any(progress.value == 100 for progress in at.get("progress"))
+
+    at.button(key=f"chat_1_confirm_{action_id}").click().run()
     assert not at.exception
     assert at.session_state["pending_reservation_action"] is None
     assert any("관리자에게 전달" in success.value for success in at.success)

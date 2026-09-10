@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -51,6 +53,8 @@ def render_agent_response(response: dict[str, Any], *, key_prefix: str = "respon
         st.markdown(answer)
     elif status == "needs_clarification":
         st.warning(answer, icon=":material/help:")
+    elif status == "confirmation_required":
+        st.info(answer, icon=":material/fact_check:")
     elif status in {"rejected", "stopped"}:
         st.warning(answer, icon=":material/shield:")
     else:
@@ -107,6 +111,10 @@ def render_tool_calls(tool_calls: Any, *, key_prefix: str = "response") -> None:
                 displayed = _display_data(data)
                 if displayed:
                     st.table(displayed, border="horizontal")
+                pending_action = data.get("pending_action")
+                if isinstance(pending_action, dict):
+                    st.markdown("**진행현황**")
+                    st.table(_pending_action_rows(pending_action), border="horizontal")
                 chunks = data.get("chunks")
                 if isinstance(chunks, list) and chunks:
                     safe_chunks = [_display_data(chunk) for chunk in chunks if isinstance(chunk, dict)]
@@ -149,10 +157,11 @@ def _display_data(data: dict[str, Any]) -> dict[str, Any]:
         "score": "관련도",
         "collection": "자료 분류",
         "query": "검색어",
+        "pending_action": "진행현황",
     }
     displayed: dict[str, str] = {}
     for key, value in data.items():
-        if key in {"as_of", "chunks"}:
+        if key in {"as_of", "chunks", "pending_action"}:
             continue
         if key == "matched" and isinstance(value, bool):
             normalized = "일치하는 정보 있음" if value else "일치하는 정보 없음"
@@ -166,3 +175,46 @@ def _display_data(data: dict[str, Any]) -> dict[str, Any]:
             normalized = str(value)
         displayed[labels.get(key, key)] = normalized
     return displayed
+
+
+def _format_kst(raw_value: object) -> str:
+    if not isinstance(raw_value, str):
+        return "확인 불가"
+    try:
+        parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    except ValueError:
+        return raw_value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S KST")
+
+
+def _pending_action_rows(action: dict[str, Any]) -> pd.DataFrame:
+    labels = {
+        "action_id": "요청 ID",
+        "tool_name": "요청 종류",
+        "summary": "예약 내용",
+        "approval_status": "진행 상태",
+        "expires_at": "확인 만료 시각",
+    }
+    tool_labels = {"reserve_experience_program": "체험 예약 요청"}
+    status_labels = {
+        "pending": "확인 대기",
+        "processing": "처리 중",
+        "completed": "확인 완료",
+        "cancelled": "취소",
+        "expired": "만료",
+    }
+    rows = []
+    for key in ("action_id", "tool_name", "summary", "approval_status", "expires_at"):
+        if key not in action:
+            continue
+        value = action[key]
+        if key == "tool_name":
+            value = tool_labels.get(str(value), str(value))
+        elif key == "approval_status":
+            value = status_labels.get(str(value), str(value))
+        elif key == "expires_at":
+            value = _format_kst(value)
+        rows.append({"항목": labels[key], "내용": value})
+    return pd.DataFrame(rows)
