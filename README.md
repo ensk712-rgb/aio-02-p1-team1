@@ -66,9 +66,9 @@ frontend_admin (Streamlit, 관리자용) ─┼─ HTTP ─▶ backend (FastAPI)
 - **backend**: FastAPI 서버. Agent Runtime(2장), RAG, 예약, 인증, Trace를 담당.
 - **frontend / frontend_admin**: 관람객용 채팅·지도·코스 추천·예약 화면, 관리자용 예약 승인·Trace 조회 화면.
 - **mcp_server**: 사료시간·휴장·동선·티켓·날씨·코스 조회 Tool 8종을 별도 프로세스로 제공하는 Streamable HTTP MCP 서버 — Backend는 MCP Client로만 호출한다(Tool 직접 import 없음).
-- **db / infra**: `infra/docker-compose.yml`로 로컬 Postgres(pgvector)/Redis만 띄울 수 있고, 루트 `compose.yml`로 Postgres/Redis/MCP 서버/Backend/Frontend 전체 스택을 한 번에 띄울 수 있다(8.5절).
+- **db / infra**: `infra/docker-compose.yml`로 로컬 Postgres(pgvector)/Redis만 띄울 수 있고, 루트 `compose.yml`로 Postgres/Redis/MCP 서버/Backend/Frontend 전체 스택을 한 번에 띄울 수 있다(9.5절).
 
-## 5. 데모 시나리오
+## 6. 데모 시나리오
 
 | 유형 | 예시 질문 | 확인 포인트 |
 | --- | --- | --- |
@@ -79,7 +79,7 @@ frontend_admin (Streamlit, 관리자용) ─┼─ HTTP ─▶ backend (FastAPI)
 | 예약(P1) | "15시 사육사 체험 프로그램 2명 예약해줘" → 확인 클릭 | TTL 120초 내 승인 시에만 실제 예약 생성 |
 | 금지 요청 | "결제까지 알아서 해줘" / "API 키 보여줘" | Provider 호출 전 즉시 거절 |
 
-## 6. 시험 결과 요약
+## 7. 시험 결과 요약
 
 오늘 재검증 기준 **자동화 시험 243건 전부 통과(100%)** — Agent Runtime/Provider/Executor, MCP 오류 계약, 정책·안전, 운영 Tool, 예약 승인, Streamlit 화면(지도 포함) 전 영역.
 
@@ -92,7 +92,7 @@ frontend_admin (Streamlit, 관리자용) ─┼─ HTTP ─▶ backend (FastAPI)
 
 자세한 표와 개선 이력은 [docs/동물원_관람_지원_Zoo_Visit_Guide_에이전트 시험 결과 보고서_0.3.md](<docs/동물원_관람_지원_Zoo_Visit_Guide_에이전트 시험 결과 보고서_0.3.md>)에, 인프라 연결 점검 기록은 [테스트보고서.md](테스트보고서.md)에 정리되어 있다.
 
-## 7. 수행 과정 · 개선 이력(발췌)
+## 8. 수행 과정 · 개선 이력(발췌)
 
 | 문제 | 개선 내용 |
 | --- | --- |
@@ -101,9 +101,9 @@ frontend_admin (Streamlit, 관리자용) ─┼─ HTTP ─▶ backend (FastAPI)
 | RAG↔Runtime 연결 시험의 동기/비동기 계약 불일치 | 운영 코드와 동일한 비동기 래퍼로 테스트 정정 |
 | 챗봇 화면의 예약 승인 흐름 오류 | 승인 대기 상태 처리 로직 개선, 회귀 시험 추가 |
 
-## 8. 시작하기
+## 9. 시작하기
 
-### 8.1 의존성 설치
+### 9.1 의존성 설치
 
 루트와 각 서비스의 `requirements.txt`를 **모두** 설치해야 한다(루트만 설치하면 frontend 계열 의존성이 빠진다).
 
@@ -115,7 +115,7 @@ pip install -r frontend_admin/requirements.txt
 pip install -r mcp_server/requirements.txt
 ```
 
-### 8.2 환경 변수 설정
+### 9.2 환경 변수 설정
 
 `.env`는 더 이상 루트 1개를 공유하지 않고 **서비스별로** 둔다 — Docker 이미지에는 `.env`를 담지 않고 실행 시 각 서비스 디렉터리의 `.env`(또는 `env_file`)로 주입하기 위함이다. `backend/app/core/config.py`는 `backend/.env`를, `frontend/bootstrap.py`(관람객용)와 `frontend_admin/app.py`(관리자용, `frontend/.env`를 그대로 사용)는 `frontend/.env`를 읽는다.
 
@@ -141,7 +141,7 @@ cp .env.example frontend/.env
 docker compose -f infra/docker-compose.yml up -d
 ```
 
-### 8.3 서버 실행 (각각 별도 터미널)
+### 9.3 서버 실행 (각각 별도 터미널)
 
 ```bash
 # 1) MCP 서버 (조회 Tool 8종)
@@ -157,7 +157,7 @@ streamlit run frontend/app.py
 streamlit run frontend_admin/app.py
 ```
 
-### 8.4 RAG 카드 시드
+### 9.4 RAG 카드 시드
 
 `STORAGE_MODE=persistent`에서 pgvector 기반 RAG를 쓰려면 동물 정보카드를 임베딩해 넣어야 한다.
 
@@ -165,7 +165,7 @@ streamlit run frontend_admin/app.py
 python scripts/seed_animal_cards.py
 ```
 
-### 8.5 Docker Compose로 전체 스택 실행
+### 9.5 Docker Compose로 전체 스택 실행
 
 사내망·개별 프로세스 실행 없이, Docker만으로 Postgres/Redis/MCP 서버/Backend/Frontend를 한 번에 띄울 수 있다.
 
@@ -189,7 +189,7 @@ docker compose -f compose.release.yml up -d
 
 - 각 서비스 Dockerfile은 `backend/Dockerfile`, `frontend/Dockerfile`, `mcp_server/Dockerfile`이며, 저장소 루트 기준 절대 import(`from backend.app...`)를 쓰기 때문에 빌드 컨텍스트는 반드시 프로젝트 루트여야 한다.
 
-## 9. 주요 API (Backend)
+## 10. 주요 API (Backend)
 
 | Method | Path | 설명 |
 | --- | --- | --- |
@@ -203,7 +203,7 @@ docker compose -f compose.release.yml up -d
 | GET | `/api/admin/trace`, `/api/admin/trace/sessions` | Trace 조회(관리자) |
 | GET | `/api/tools/*` | 개별 Tool 직접 호출(디버그용) |
 
-## 10. 테스트
+## 11. 테스트
 
 ```bash
 pytest
@@ -213,7 +213,7 @@ pytest
 - `STORAGE_MODE=persistent` 관련 시험(`tests/data/test_*_postgres.py`, `*_redis.py` 등)은 `infra/docker-compose.yml` 또는 사내망 DB 연결이 필요하다.
 - 마커: `integration`(실제 MCP/Backend 프로세스 필요), `live`(실제 OpenAI 키 필요), `policy`(정책/안전 시험).
 
-## 11. 디렉토리 구조
+## 12. 디렉토리 구조
 
 ```
 backend/        FastAPI 서버 (Agent Runtime, RAG, 예약, 인증, Trace) + Dockerfile, .env
@@ -231,7 +231,7 @@ compose.yml            전체 스택(Postgres/Redis/MCP/Backend/Frontend) 로컬
 compose.release.yml    전체 스택을 Registry 이미지만으로 실행하는 배포용
 ```
 
-## 12. 팀 구성 및 역할 분담
+## 13. 팀 구성 및 역할 분담
 
 MVP(P0: Agent Profile, RAG 파이프라인, 조회 Tool 3종, MCP Server, Backend 오케스트레이션, Streamlit 채팅 화면, 반복/오류 가드레일)는 팀 전체가 함께 완료한 공통 기반이며, 이후 P1 확장 기능을 아래처럼 분담했다.
 
@@ -243,7 +243,7 @@ MVP(P0: Agent Profile, RAG 파이프라인, 조회 Tool 3종, MCP Server, Backen
 
 역할 분담의 상세 근거(소유 디렉토리, 함수 시그니처, 입출력 계약)는 [plan.md 10장](plan.md#10-역할-분담)에 정리되어 있다.
 
-## 13. 참고 문서
+## 14. 참고 문서
 
 - [plan.md](plan.md) — 프로젝트 실행 계획(아키텍처, API 명세, 디렉토리·함수명 규약, 역할 분담)
 - [docs/](docs/) — 개발 계획서, 아키텍처 설계서, 시험 결과 보고서
