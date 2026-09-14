@@ -1,6 +1,6 @@
 # 동물원 관람 지원 AI 에이전트 (Zoo Visit Guide)
 
-> LangGraph 기반 AI Agent 실습 과제 — "일정 조율 에이전트" 예시 시나리오를 **동물원 관람 안내**로 재구성해, 인지→판단→행동→검증과 자기 성찰(오류 감지·재시도) 루프를 갖춘 단일 Agent를 설계·구현·시험했습니다.
+> AI Agent 실습 과제 — "일정 조율 에이전트" 예시 시나리오를 **동물원 관람 안내**로 재구성해, 인지→판단→행동→검증과 자기 성찰(오류 감지·재시도) 루프를 갖춘 단일 Agent를 설계·구현·시험했습니다.
 
 ## 1. 프로젝트 개요
 
@@ -67,6 +67,76 @@ frontend_admin (Streamlit, 관리자용) ─┼─ HTTP ─▶ backend (FastAPI)
 - **frontend / frontend_admin**: 관람객용 채팅·지도·코스 추천·예약 화면, 관리자용 예약 승인·Trace 조회 화면.
 - **mcp_server**: 사료시간·휴장·동선·티켓·날씨·코스 조회 Tool 8종을 별도 프로세스로 제공하는 Streamable HTTP MCP 서버 — Backend는 MCP Client로만 호출한다(Tool 직접 import 없음).
 - **db / infra**: `infra/docker-compose.yml`로 로컬 Postgres(pgvector)/Redis만 띄울 수 있고, 루트 `compose.yml`로 Postgres/Redis/MCP 서버/Backend/Frontend 전체 스택을 한 번에 띄울 수 있다(9.5절).
+
+## 5. 데이터 모델 (ERD)
+
+`STORAGE_MODE=memory`(기본값)에서는 예약이 프로세스 메모리에만 존재하고, 로그인 사용자만 SQLite에 저장된다. `STORAGE_MODE=persistent`로 실행하면 RAG·예약 데이터가 Postgres(pgvector)에 영속화된다. 두 저장소는 물리적으로 분리되어 있어 `user_id`는 DB 레벨 FK가 아니라 애플리케이션이 맞춰 쓰는 논리적 연결이다.
+
+```mermaid
+erDiagram
+    USERS ||--o{ RESERVATIONS : "user_id로 매핑 (앱 레벨, DB FK 아님 - 서로 다른 DB)"
+    PENDING_RESERVATION_ACTIONS ||--o| RESERVATIONS : "승인(confirm) 시 값을 복사해 생성"
+
+    USERS {
+        text user_id PK
+        text password
+        text role "user 또는 admin"
+    }
+
+    RESERVATIONS {
+        text action_id PK
+        text user_id "논리적 FK -> USERS.user_id"
+        text program
+        text visit_time
+        int headcount
+        text status "pending/approved/rejected"
+        timestamptz created_at
+        timestamptz decided_at
+    }
+
+    PENDING_RESERVATION_ACTIONS {
+        text action_id PK
+        text session_id
+        text tool_name
+        jsonb arguments
+        text summary
+        text approval_status "pending/confirmed/cancelled/expired"
+        timestamptz created_at
+        timestamptz expires_at "TTL 120초"
+        timestamptz decided_at
+    }
+
+    ANIMAL_CARDS {
+        int id PK
+        text doc_id UK
+        text title
+        text collection
+        int page
+        text text
+        text_array keywords
+        timestamptz created_at
+    }
+
+    DOCUMENT_CHUNKS {
+        bigint id PK
+        text doc_id
+        text collection
+        text title
+        int page
+        text text
+        text_array keywords
+        vector embedding "VECTOR(1536)"
+        timestamptz created_at
+    }
+```
+
+| 테이블 | 저장소 | 용도 |
+| --- | --- | --- |
+| `users` | SQLite (`data/zoo_auth.db`) | 로그인 계정(`user_id`, `password`, `role`) — [user_repository.py](backend/app/repositories/user_repository.py) |
+| `reservations` | 메모리(In-Memory dict) 또는 Postgres(`STORAGE_MODE=persistent`) | 승인 완료·대기 중인 실제 예약 — [reservation_repository.py](backend/app/repositories/reservation_repository.py) |
+| `pending_reservation_actions` | Postgres(`STORAGE_MODE=persistent`) | 사용자 확인을 기다리는 예약 요청(TTL 120초) — [pending_action_repository.py](backend/app/repositories/pending_action_repository.py) |
+| `animal_cards` | Postgres | RAG 검색용 동물 정보카드 원본(임베딩 없음) — [db/seed_animal_cards.sql](db/seed_animal_cards.sql) |
+| `document_chunks` | Postgres + pgvector | RAG 검색용 임베딩 청크(`VECTOR(1536)`) — [core/db.py](backend/app/core/db.py) |
 
 ## 6. 데모 시나리오
 
