@@ -1,0 +1,40 @@
+# backend/Dockerfile, frontend/Dockerfile, mcp_server/Dockerfile 모두
+# 빌드 컨텍스트가 저장소 루트이므로, 이 파일 하나로 전체를 커버한다.
+
+# 가상환경 / 파이썬 캐시
+.venv/
+**/.venv/
+**/.venv312/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest_tmp/
+
+# 환경 변수 (이미지에 담지 않고 실행 시 env_file로 주입)
+.env
+**/.env
+!.env.example
+
+# VCS / 에디터 / 도구 설정
+.git/
+.gitignore
+.claude/
+.vscode/
+.streamlit/secrets.toml
+
+# 문서 / 테스트 / 평가 스크립트 (런타임에 불필요)
+docs/
+tests/
+eval/
+plan.md
+*.md
+!README.md
+
+# 로컬 산출물
+tmp/
+.pytest_tmp/
+data/zoo_auth.db
+
+# OS
+.DS_Store
