@@ -1,0 +1,87 @@
+# 시나리오: 소스 코드 없이, Registry에 올린 Image만으로 완전히 독립 실행한다.
+# Postgres/Redis/MCP 서버까지 전부 이 파일 안에서 같이 뜨기 때문에, 받는 쪽은
+# 이 compose.release.yml과 .env(BACKEND_IMAGE/FRONTEND_IMAGE/MCP_IMAGE)만 있으면 된다.
+name: zoo-visit-guide-release
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: zoo
+      POSTGRES_PASSWORD: zoo
+      POSTGRES_DB: zoo
+    volumes:
+      - zoo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zoo -d zoo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  mcp_server:
+    # .env에서 Registry Image와 버전을 지정한다.
+    image: ${MCP_IMAGE:?MCP_IMAGE을 .env에 설정하세요}
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8100
+    restart: unless-stopped
+
+  backend:
+    # .env에서 Registry Image와 버전을 지정한다.
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE을 .env에 설정하세요}
+    environment:
+      # 이미지 안에는 backend/.env가 없으므로, Settings에서 꼭 필요한 값은
+      # 여기서 직접 넘긴다. DATABASE_URL/REDIS_URL/MCP_SERVER_URL은 같은
+      # compose 네트워크 안의 서비스명을 가리킨다.
+      APP_MODE: ${APP_MODE:-mock}
+      STORAGE_MODE: ${STORAGE_MODE:-persistent}
+      DATABASE_URL: postgresql://zoo:zoo@postgres:5432/zoo
+      REDIS_URL: redis://redis:6379/0
+      MCP_SERVER_URL: http://mcp_server:8100/mcp
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:8501}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mcp_server:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    # .env에서 Registry Image와 버전을 지정한다.
+    image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE을 .env에 설정하세요}
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  zoo_postgres_data:

@@ -66,7 +66,7 @@ frontend_admin (Streamlit, 관리자용) ─┼─ HTTP ─▶ backend (FastAPI)
 - **backend**: FastAPI 서버. Agent Runtime(2장), RAG, 예약, 인증, Trace를 담당.
 - **frontend / frontend_admin**: 관람객용 채팅·지도·코스 추천·예약 화면, 관리자용 예약 승인·Trace 조회 화면.
 - **mcp_server**: 사료시간·휴장·동선·티켓·날씨·코스 조회 Tool 8종을 별도 프로세스로 제공하는 Streamable HTTP MCP 서버 — Backend는 MCP Client로만 호출한다(Tool 직접 import 없음).
-- **db / infra**: `infra/docker-compose.yml`로 로컬 Postgres(pgvector)/Redis를 띄울 수 있다.
+- **db / infra**: `infra/docker-compose.yml`로 로컬 Postgres(pgvector)/Redis만 띄울 수 있고, 루트 `compose.yml`로 Postgres/Redis/MCP 서버/Backend/Frontend 전체 스택을 한 번에 띄울 수 있다(8.5절).
 
 ## 5. 데모 시나리오
 
@@ -117,8 +117,11 @@ pip install -r mcp_server/requirements.txt
 
 ### 8.2 환경 변수 설정
 
+`.env`는 더 이상 루트 1개를 공유하지 않고 **서비스별로** 둔다 — Docker 이미지에는 `.env`를 담지 않고 실행 시 각 서비스 디렉터리의 `.env`(또는 `env_file`)로 주입하기 위함이다. `backend/app/core/config.py`는 `backend/.env`를, `frontend/bootstrap.py`(관람객용)와 `frontend_admin/app.py`(관리자용, `frontend/.env`를 그대로 사용)는 `frontend/.env`를 읽는다.
+
 ```bash
-cp .env.example .env
+cp .env.example backend/.env
+cp .env.example frontend/.env
 ```
 
 | 변수 | 설명 |
@@ -154,13 +157,37 @@ streamlit run frontend/app.py
 streamlit run frontend_admin/app.py
 ```
 
-### 8.4 (선택) RAG 카드 시드
+### 8.4 RAG 카드 시드
 
 `STORAGE_MODE=persistent`에서 pgvector 기반 RAG를 쓰려면 동물 정보카드를 임베딩해 넣어야 한다.
 
 ```bash
 python scripts/seed_animal_cards.py
 ```
+
+### 8.5 Docker Compose로 전체 스택 실행
+
+사내망·개별 프로세스 실행 없이, Docker만으로 Postgres/Redis/MCP 서버/Backend/Frontend를 한 번에 띄울 수 있다.
+
+**로컬 빌드로 실행** (`compose.yml`) — 이 저장소 코드를 그대로 빌드해서 띄운다.
+
+```bash
+cp .env.example backend/.env
+cp .env.example frontend/.env
+# backend/.env에 OPENAI_API_KEY를 채우면 APP_MODE=openai로 실제 LLM 응답 가능
+docker compose -f compose.yml up -d --build
+```
+
+- Backend: http://localhost:8000, Frontend: http://localhost:8501
+- Postgres/Redis/MCP 서버는 컨테이너 네트워크 안에서 서비스명(`postgres`, `redis`, `mcp_server`)으로 서로를 찾도록 `compose.yml`에서 `DATABASE_URL`/`REDIS_URL`/`MCP_SERVER_URL`을 덮어쓴다 — `backend/.env`·`frontend/.env`의 로컬/사내망 값은 이때 무시된다.
+
+**빌드된 이미지만으로 실행** (`compose.release.yml`) — 소스 코드 없이 Registry에 올린 이미지만으로 배포하는 시나리오. `.env`에 `BACKEND_IMAGE`/`FRONTEND_IMAGE`/`MCP_IMAGE`(및 필요 시 `OPENAI_API_KEY` 등)를 지정한다.
+
+```bash
+docker compose -f compose.release.yml up -d
+```
+
+- 각 서비스 Dockerfile은 `backend/Dockerfile`, `frontend/Dockerfile`, `mcp_server/Dockerfile`이며, 저장소 루트 기준 절대 import(`from backend.app...`)를 쓰기 때문에 빌드 컨텍스트는 반드시 프로젝트 루트여야 한다.
 
 ## 9. 주요 API (Backend)
 
@@ -189,17 +216,19 @@ pytest
 ## 11. 디렉토리 구조
 
 ```
-backend/        FastAPI 서버 (Agent Runtime, RAG, 예약, 인증, Trace)
-frontend/       관람객용 Streamlit 앱
+backend/        FastAPI 서버 (Agent Runtime, RAG, 예약, 인증, Trace) + Dockerfile, .env
+frontend/       관람객용 Streamlit 앱 + Dockerfile, .env(frontend_admin도 공유)
 frontend_admin/ 관리자용 Streamlit 앱 (예약 승인)
-mcp_server/     운영 조회 Tool을 제공하는 MCP 서버
+mcp_server/     운영 조회 Tool을 제공하는 MCP 서버 + Dockerfile
 db/             스키마·마이그레이션 관련 자료
 data/           동물 정보카드 등 로컬 데이터
 scripts/        RAG 카드 시드 등 운영 스크립트
 eval/           시나리오 기반 평가 스크립트
-infra/          로컬 Postgres(pgvector)/Redis docker-compose
+infra/          로컬 Postgres(pgvector)/Redis만 띄우는 docker-compose
 tests/          pytest 시험 전체
 docs/           설계서·작업지시서·시험 결과 보고서
+compose.yml            전체 스택(Postgres/Redis/MCP/Backend/Frontend) 로컬 빌드 실행용
+compose.release.yml    전체 스택을 Registry 이미지만으로 실행하는 배포용
 ```
 
 ## 12. 팀 구성 및 역할 분담

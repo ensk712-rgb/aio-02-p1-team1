@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any, Protocol
 
 import streamlit as st
 import extra_streamlit_components as stx
 from dotenv import load_dotenv
 
-from backend.app.core.config import PROJECT_ROOT
 from frontend.clients.agent_client import AgentClient, AgentClientError
 from frontend.clients.fake_agent_client import FakeAgentClient
 
@@ -57,7 +57,8 @@ class AgentClientProtocol(Protocol):
     ) -> dict[str, Any]: ...
 
 
-load_dotenv(PROJECT_ROOT / ".env")
+FRONTEND_ROOT = Path(__file__).resolve().parent
+load_dotenv(FRONTEND_ROOT / ".env")
 AUTH_COOKIE = "zoo_auth_session"
 _cookie_manager: stx.CookieManager | None = None
 

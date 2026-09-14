@@ -16,12 +16,12 @@ if str(PROJECT_ROOT_PATH) not in sys.path:
 import streamlit as st
 from dotenv import load_dotenv
 
-from backend.app.core.config import PROJECT_ROOT
 from frontend.clients.agent_client import AgentClient, AgentClientError
 from frontend.clients.fake_agent_client import FakeAgentClient
 
 
-load_dotenv(PROJECT_ROOT / ".env")
+FRONTEND_ROOT = PROJECT_ROOT_PATH / "frontend"
+load_dotenv(FRONTEND_ROOT / ".env")
 
 st.set_page_config(
     page_title="Zoo Visit Guide 관리자",

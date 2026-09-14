@@ -28,7 +28,7 @@ sys.path.insert(0, str(_BACKEND_DIR))
 
 from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv(_PROJECT_ROOT / ".env")
+load_dotenv(_BACKEND_DIR / ".env")
 # document_repository.insert_chunks는 STORAGE_MODE=persistent일 때 db.py의
 # 커넥션 풀을 통해 실제 pgvector에 쓴다. 이 스크립트는 시딩이 목적이므로
 # .env의 STORAGE_MODE 값과 무관하게 이 프로세스 안에서만 persistent로 강제한다.
